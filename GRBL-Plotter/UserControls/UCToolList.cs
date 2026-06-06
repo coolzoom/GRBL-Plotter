@@ -506,6 +506,7 @@ namespace GrblPlotter.UserControls
         {
             lastClickedElement = -1;
             Logger.Info("▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀ Reload from Tool list ApplyToolList:{0}   SettingWasChanged:{1}", CbApplyToolList.Checked, MyControl.GetSettingWasChanged());
+            MyControl.ProcessAutomationRunning = false;
 
             if (CbApplyToolList.Checked)	// apply tool-list
             {

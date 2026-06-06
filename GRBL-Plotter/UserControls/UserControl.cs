@@ -92,6 +92,8 @@ namespace GrblPlotter.UserControls
     public class MyControl
     {
         private static readonly bool log = true;
+        public static bool ProcessAutomationRunning { get; set; }
+
         public static Color ButtonBackColor { get; set; }
         public static Color ButtonForeColor { get; set; }
         public static Color PanelBackColor { get; set; }
@@ -261,6 +263,9 @@ namespace GrblPlotter.UserControls
                 if (log) Logger.Trace("►►►►►► ChangeGraphicOptionsDeviceSpecific device: {0} UseToolList: {1}   {2}", GetSelectedDeviceName(), UseToolList(), GetActualDevice().Settings());
                 return;
             }
+            if (!ProcessAutomationRunning)
+                LoadProperties.Off();
+
             var PropSettings = Properties.Settings.Default;
             info.OptionSpecialDevelopment = false;
             info.OptionSpecialWireBender = false;
@@ -402,6 +407,7 @@ namespace GrblPlotter.UserControls
                     info.ImportDxfConsiderZ = true;
                 }
             }
+            Logger.Trace("Offset  {0}   {1}   ", GuiVariables.offsetOriginX,GuiVariables.offsetOriginY);
         }
 
         /***************************************************************
