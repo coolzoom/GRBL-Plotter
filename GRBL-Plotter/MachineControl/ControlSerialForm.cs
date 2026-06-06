@@ -71,6 +71,7 @@
  * 2023-09-16 l:342 f:CopySelectionToClipboard add try catch
  * 2025-03-06 l:830 f:JustgrblReset - cbPort.Text = "COM1" on TimeoutException, to avoid same exception on next program start
  * 2026-04-09 GUI rework for vers. 1.8.0.0
+ * 2026-06-05 l:405 f:TimerSerial_Tick add Invoke #468 ...accessed from a thread other than the thread it was created on
 */
 
 // OnRaiseStreamEvent(new StreamEventArgs((int)lineNr, codeFinish, buffFinish, status));
@@ -401,7 +402,8 @@ namespace GrblPlotter
                 {
                     if (IsConnectedToGrbl())
                     {
-                        this.WindowState = FormWindowState.Minimized;
+                        Invoke(new Action(() =>
+							{this.WindowState = FormWindowState.Minimized;}));
                         Logger.Info("Minimize window");
                         AddToLog("Minimize window...");
                         Application.DoEvents();

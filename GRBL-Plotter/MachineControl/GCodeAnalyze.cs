@@ -79,6 +79,8 @@ namespace GrblPlotter
             public PathData(string pencolor, double penwidth, PointF offset)
             {
                 path = new GraphicsPath();
+                color = Colors.TryConvertColor(pencolor);
+				/*
                 if (string.IsNullOrEmpty(pencolor))
                 { color = Properties.Settings.Default.gui2DColorPenDown; }
                 else if (UInt32.TryParse(pencolor, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uint clr))  // try Hex code #00ff00
@@ -92,7 +94,7 @@ namespace GrblPlotter
                     color = Color.FromName(pencolor);
                     if (color == System.Drawing.Color.FromArgb(0))
                     { color = Properties.Settings.Default.gui2DColorPenDown; }
-                }
+                }*/
                 SetPathData(color, penwidth, offset);
             }
             public PathData(Color color, double penwidth, PointF offset)

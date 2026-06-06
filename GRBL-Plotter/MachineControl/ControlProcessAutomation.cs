@@ -1,7 +1,7 @@
-﻿/*  GRBL-Plotter. Another GCode sender for GRBL.
+﻿﻿/*  GRBL-Plotter. Another GCode sender for GRBL.
     This file is part of the GRBL-Plotter application.
    
-    Copyright (C) 2015-2024 Sven Hasemann contact: svenhb@web.de
+    Copyright (C) 2015-2026 Sven Hasemann contact: svenhb@web.de
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -25,6 +25,7 @@
  * 2024-10-04 add "Wait Registry"
  * 2024-11-19 l:1572 f:BtnStep_Click add try catch
  * 2024-12-02 add "G-Code Data"
+ * by fclinton Bulk text-from-spreadsheet automation (xlsx import, text size/align/line, verify dimension, goto) #467
  * 2026-06-02 add bulk text from spreadsheet: .xlsx data load, "Wait User" on-screen checkpoint, {n} column templates
  * 2026-06-02 add "Verify Dimension" action (size check) with per-row error flagging + CSV summary
  * 2026-06-02 add "Verify" ;jump=<line> on fail, and "Goto" unconditional jump (forward/backward)

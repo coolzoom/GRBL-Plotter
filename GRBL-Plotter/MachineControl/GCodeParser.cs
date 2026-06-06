@@ -149,7 +149,6 @@ namespace GrblPlotter
         { lineNumber = lnr; figureNumber = fnr; actualPos = apos; alpha = a; distance = dist; isArc = ia; }
     }
 
-
     internal struct XyzabcuvwPoint
     {
         public double X, Y, Z, A, B, C, U, V, W;
@@ -383,11 +382,11 @@ namespace GrblPlotter
                     break;
                 case 'I':
                     i = value;
-					if (j==null) j=0;
+                    if (j == null) j = 0;
                     break;
                 case 'J':
                     j = value;
-					if (i==null) i=0;
+                    if (i == null) i = 0;
                     break;
                 case 'N':
                     nNumber = (int)value;
@@ -583,6 +582,11 @@ namespace GrblPlotter
     internal static class GcodeMath
     {
         internal static double precision = 0.00001;
+        // Trace, Debug, Info, Warn, Error, Fatal
+        private static readonly NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
+
+        internal static bool IsEqual(double a, double b)
+        { return (Math.Abs(a - b) < precision); }
 
         internal static bool IsEqual(System.Windows.Point a, System.Windows.Point b)
         { return ((Math.Abs(a.X - b.X) < precision) && (Math.Abs(a.Y - b.Y) < precision)); }
@@ -594,19 +598,20 @@ namespace GrblPlotter
         internal static double DistancePointToPoint(XyPoint a, XyPoint b)
         { return Math.Sqrt(((a.X - b.X) * (a.X - b.X)) + ((a.Y - b.Y) * (a.Y - b.Y))); }
 
-        internal static ArcProperties GetArcMoveProperties(System.Windows.Point pOld, System.Windows.Point pNew, System.Windows.Point centerIJ, bool isG2)
-        { return GetArcMoveProperties(new XyPoint(pOld), new XyPoint(pNew), centerIJ.X, centerIJ.Y, isG2); }
-        internal static ArcProperties GetArcMoveProperties(XyPoint pOld, XyPoint pNew, XyPoint center, bool isG2)
-        { return GetArcMoveProperties(pOld, pNew, pOld.X - center.X, pOld.Y - center.Y, isG2); }
+        internal static ArcProperties GetArcMoveProperties(System.Windows.Point pStart, System.Windows.Point pEnd, System.Windows.Point centerIJ, bool isG2)
+        { return GetArcMoveProperties(new XyPoint(pStart), new XyPoint(pEnd), centerIJ.X, centerIJ.Y, isG2); }
+        internal static ArcProperties GetArcMoveProperties(XyPoint pStart, XyPoint pEnd, XyPoint centerIJ, bool isG2)
+        { return GetArcMoveProperties(pStart, pEnd, centerIJ.X, centerIJ.Y, isG2); }
 
-        internal static ArcProperties GetArcMoveProperties(XyPoint pOld, XyPoint pNew, double? I, double? J, bool isG2)
+        internal static ArcProperties GetArcMoveProperties(XyPoint pStart, XyPoint pEnd, double? I, double? J, bool isG2)
         {
-            ArcProperties tmp = GetArcMoveAngle(pOld, pNew, I, J);
+            ArcProperties tmp = GetArcMoveAngle(pStart, pEnd, I, J);
+
             if (!isG2) { tmp.angleDiff = Math.Abs(tmp.angleEnd - tmp.angleStart + 2 * Math.PI); }
             if (tmp.angleDiff > (2 * Math.PI)) { tmp.angleDiff -= (2 * Math.PI); }
             if (tmp.angleDiff < (-2 * Math.PI)) { tmp.angleDiff += (2 * Math.PI); }
 
-            if ((pOld.X == pNew.X) && (pOld.Y == pNew.Y))
+            if (Math.Abs(pStart.DistanceTo(pEnd)) < precision)
             {
                 if (isG2) { tmp.angleDiff = -2 * Math.PI; }
                 else { tmp.angleDiff = 2 * Math.PI; }
@@ -614,7 +619,7 @@ namespace GrblPlotter
             return tmp;
         }
 
-        internal static ArcProperties GetArcMoveAngle(XyPoint pOld, XyPoint pNew, double? I, double? J)
+        internal static ArcProperties GetArcMoveAngle(XyPoint pStart, XyPoint pEnd, double? I, double? J)
         {
             ArcProperties tmp;
             if (I == null) { I = 0; }
@@ -622,30 +627,18 @@ namespace GrblPlotter
             double i = (double)I;
             double j = (double)J;
             tmp.radius = Math.Sqrt(i * i + j * j);  // get radius of circle
-            tmp.center.X = pOld.X + i;
-            tmp.center.Y = pOld.Y + j;
+            tmp.center.X = pStart.X + i;
+            tmp.center.Y = pStart.Y + j;
             tmp.angleStart = tmp.angleEnd = tmp.angleDiff = 0;
             if (tmp.radius == 0)
                 return tmp;
 
-            double cos1 = i / tmp.radius;
-            if (cos1 > 1) cos1 = 1;
-            if (cos1 < -1) cos1 = -1;
-            tmp.angleStart = Math.PI - Math.Acos(cos1);
-            if (j > 0) { tmp.angleStart = -tmp.angleStart; }
-
-            if ((j == 0) && (Math.Abs(pOld.DistanceTo(pNew)) < precision))   // full circle
-            {
-                tmp.angleDiff = -2 * Math.PI;
-                return tmp;
-            }
-
-            double cos2 = (tmp.center.X - pNew.X) / tmp.radius;
-            if (cos2 > 1) cos2 = 1;
-            if (cos2 < -1) cos2 = -1;
-            tmp.angleEnd = Math.PI - Math.Acos(cos2);
-            if ((tmp.center.Y - pNew.Y) > 0) { tmp.angleEnd = -tmp.angleEnd; }
-
+            double vsx = pStart.X - tmp.center.X;
+            double vsy = pStart.Y - tmp.center.Y;
+            double vex = pEnd.X - tmp.center.X;
+            double vey = pEnd.Y - tmp.center.Y;
+            tmp.angleStart = Math.Atan2(vsy, vsx);
+            tmp.angleEnd = Math.Atan2(vey, vex);
             tmp.angleDiff = tmp.angleEnd - tmp.angleStart - 2 * Math.PI;
             return tmp;
         }
