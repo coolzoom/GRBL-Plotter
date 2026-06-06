@@ -1,7 +1,7 @@
 ﻿/*  GRBL-Plotter. Another GCode sender for GRBL.
    This file is part of the GRBL-Plotter application.
 
-   Copyright (C) 2015-2025 Sven Hasemann contact: svenhb@web.de
+   Copyright (C) 2015-2026 Sven Hasemann contact: svenhb@web.de
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -105,7 +105,6 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Windows;
-using System.Windows.Forms;
 using System.Windows.Media;
 using MessageBox = System.Windows.Forms.MessageBox;
 
@@ -596,22 +595,22 @@ namespace GrblPlotter //DXFImporter
                     }
                     if (bulge != 0)
                     {
-                    //    if (logPosition) Logger.Trace("PolyLine bulge  index:{0} val1X:{1:0.000} val1Y:{2:0.000} val2X:{3:0.000} val2Y:{4:0.000}", i, lp.Elements[i].Vertex.X, lp.Elements[i].Vertex.Y, lp.Elements[i + 1].Vertex.X, lp.Elements[i + 1].Vertex.Y);
+                        //    if (logPosition) Logger.Trace("PolyLine bulge  index:{0} val1X:{1:0.000} val1Y:{2:0.000} val2X:{3:0.000} val2Y:{4:0.000}", i, lp.Elements[i].Vertex.X, lp.Elements[i].Vertex.Y, lp.Elements[i + 1].Vertex.X, lp.Elements[i + 1].Vertex.Y);
 
                         if (i < (lp.VertexCount - 1))
                         {
-							if (logPosition) Logger.Trace("PolyLine bulge  index:{0} val1X:{1:0.000} val1Y:{2:0.000} val2X:{3:0.000} val2Y:{4:0.000}", i, lp.Elements[i].Vertex.X, lp.Elements[i].Vertex.Y, lp.Elements[i + 1].Vertex.X, lp.Elements[i + 1].Vertex.Y);
-							AddRoundCorner((DXFPoint)lp.Elements[i].Vertex, (DXFPoint)lp.Elements[i + 1].Vertex, bulge, blockOffset, blockAngle, blockScaling);
-						}
+                            if (logPosition) Logger.Trace("PolyLine bulge  index:{0} val1X:{1:0.000} val1Y:{2:0.000} val2X:{3:0.000} val2Y:{4:0.000}", i, lp.Elements[i].Vertex.X, lp.Elements[i].Vertex.Y, lp.Elements[i + 1].Vertex.X, lp.Elements[i + 1].Vertex.Y);
+                            AddRoundCorner((DXFPoint)lp.Elements[i].Vertex, (DXFPoint)lp.Elements[i + 1].Vertex, bulge, blockOffset, blockAngle, blockScaling);
+                        }
                         else
                         {
-							if (lp.Flags.HasFlag(DXFLWPolyLine.FlagsEnum.closed))        // == DXFLWPolyLine.FlagsEnum.closed)
+                            if (lp.Flags.HasFlag(DXFLWPolyLine.FlagsEnum.closed))        // == DXFLWPolyLine.FlagsEnum.closed)
                             {
-								if (logPosition) Logger.Trace("PolyLine closed  index:{0} val1X:{1:0.000} val1Y:{2:0.000} val2X:{3:0.000} val2Y:{4:0.000}", i, lp.Elements[i].Vertex.X, lp.Elements[i].Vertex.Y, lp.Elements[0].Vertex.X, lp.Elements[0].Vertex.Y);
-								AddRoundCorner((DXFPoint)lp.Elements[i].Vertex, (DXFPoint)lp.Elements[0].Vertex, bulge, blockOffset, blockAngle, blockScaling);
-							}
-						}
-						roundcorner = true;
+                                if (logPosition) Logger.Trace("PolyLine closed  index:{0} val1X:{1:0.000} val1Y:{2:0.000} val2X:{3:0.000} val2Y:{4:0.000}", i, lp.Elements[i].Vertex.X, lp.Elements[i].Vertex.Y, lp.Elements[0].Vertex.X, lp.Elements[0].Vertex.Y);
+                                AddRoundCorner((DXFPoint)lp.Elements[i].Vertex, (DXFPoint)lp.Elements[0].Vertex, bulge, blockOffset, blockAngle, blockScaling);
+                            }
+                        }
+                        roundcorner = true;
                     }
                     else
                         roundcorner = false;
@@ -668,17 +667,17 @@ namespace GrblPlotter //DXFImporter
 
                             if (i < (lp.Children.Count - 1))
                             {
-								if (logPosition) Logger.Trace("PolyLine bulge i-1 index:{0} val1X:{1:0.000} val1Y:{2:0.000} val2X:{3:0.000} val2Y:{4:0.000}", i, ((DXFVertex)lp.Children[i]).Location.X, ((DXFVertex)lp.Children[i]).Location.Y, ((DXFVertex)lp.Children[i + 1]).Location.X, ((DXFVertex)lp.Children[i + 1]).Location.Y);
-								AddRoundCorner((DXFPoint)((DXFVertex)lp.Children[i]).Location, (DXFPoint)((DXFVertex)lp.Children[i + 1]).Location, bulge, blockOffset, blockAngle, blockScaling);
-							}
+                                if (logPosition) Logger.Trace("PolyLine bulge i-1 index:{0} val1X:{1:0.000} val1Y:{2:0.000} val2X:{3:0.000} val2Y:{4:0.000}", i, ((DXFVertex)lp.Children[i]).Location.X, ((DXFVertex)lp.Children[i]).Location.Y, ((DXFVertex)lp.Children[i + 1]).Location.X, ((DXFVertex)lp.Children[i + 1]).Location.Y);
+                                AddRoundCorner((DXFPoint)((DXFVertex)lp.Children[i]).Location, (DXFPoint)((DXFVertex)lp.Children[i + 1]).Location, bulge, blockOffset, blockAngle, blockScaling);
+                            }
                             else
                             {
-								if (lp.Flags.HasFlag(DXFPolyLine.FlagsEnum.closed))        // == DXFPolyLine.FlagsEnum.closed)
+                                if (lp.Flags.HasFlag(DXFPolyLine.FlagsEnum.closed))        // == DXFPolyLine.FlagsEnum.closed)
                                 {
-									if (logPosition) Logger.Trace("PolyLine closed  index:{0} val1X:{1:0.000} val1Y:{2:0.000} val2X:{3:0.000} val2Y:{4:0.000}", i, ((DXFVertex)lp.Children[i]).Location.X, ((DXFVertex)lp.Children[i]).Location.Y, ((DXFVertex)lp.Children[0]).Location.X, ((DXFVertex)lp.Children[0]).Location.Y);
-									AddRoundCorner((DXFPoint)((DXFVertex)lp.Children[i]).Location, (DXFPoint)((DXFVertex)lp.Children[0]).Location, bulge, blockOffset, blockAngle, blockScaling);
-								}
-							}
+                                    if (logPosition) Logger.Trace("PolyLine closed  index:{0} val1X:{1:0.000} val1Y:{2:0.000} val2X:{3:0.000} val2Y:{4:0.000}", i, ((DXFVertex)lp.Children[i]).Location.X, ((DXFVertex)lp.Children[i]).Location.Y, ((DXFVertex)lp.Children[0]).Location.X, ((DXFVertex)lp.Children[0]).Location.Y);
+                                    AddRoundCorner((DXFPoint)((DXFVertex)lp.Children[i]).Location, (DXFPoint)((DXFVertex)lp.Children[0]).Location, bulge, blockOffset, blockAngle, blockScaling);
+                                }
+                            }
                         }
                     }
                 }
@@ -1417,7 +1416,7 @@ namespace GrblPlotter //DXFImporter
             for (int i = 1; i < b.Points.Count; i++)
                 DXFMoveTo(b.Points[i].X, b.Points[i].Y, pointZ[i]);
         }
-		
+
         private static Point[] points;
         public static PolyLineSegment GetBezierApproximationDXF(DXFPoint[] controlPoints, int outputSegmentCount, out double[] pointZ)
         {
@@ -1433,12 +1432,12 @@ namespace GrblPlotter //DXFImporter
                     tmp = GetBezierPointDXF(t, controlPoints, 0, controlPoints.Length);
                     points[i] = new Point((double)tmp.X, (double)tmp.Y);
                     pointZ[i] = (double)tmp.Z;
-                //    Logger.Info("GetBezierApproximationDXF X:{0} Y:{1} Z:{2}", tmp.X, tmp.Y, tmp.Z);
+                    //    Logger.Info("GetBezierApproximationDXF X:{0} Y:{1} Z:{2}", tmp.X, tmp.Y, tmp.Z);
                 }
             }
             return new PolyLineSegment(points, true);
         }
-		
+
         private static DXFPoint GetBezierPointDXF(double t, DXFPoint[] controlPoints, int index, int count)
         {
             if (count == 1)
@@ -1448,7 +1447,7 @@ namespace GrblPlotter //DXFImporter
             double x = (1 - t) * (double)P0.X + t * (double)P1.X;
             double y = (1 - t) * (double)P0.Y + t * (double)P1.Y;
             double z = (1 - t) * (double)P0.Z + t * (double)P1.Z;
-        //    Logger.Info("GetBezierPointDXF X:{0} Y:{1} Z:{2}", x, y, z);
+            //    Logger.Info("GetBezierPointDXF X:{0} Y:{1} Z:{2}", x, y, z);
             return new DXFPoint() { X = x, Y = y, Z = z };	// z=(P0.Z + P1.Z) / 2
         }
 
