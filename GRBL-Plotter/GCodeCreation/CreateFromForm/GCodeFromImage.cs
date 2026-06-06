@@ -1415,8 +1415,9 @@ namespace GrblPlotter
                     }
                     else
                     {
-                        int i = Colors.GetToolNRByColor(clr, conversionMode);
-                        lblStatus.Text = clr.ToString() + " = " + Colors.MyPalette[i].Name;
+                        //int i = Colors.GetToolNRByColor(clr, conversionMode);
+                        //lblStatus.Text = clr.ToString() + " = " + Colors.MyPalette[i].Name;
+                        lblStatus.Text = clr.ToString() + " = " + Colors.GetPaletteEntryByColor(clr, conversionMode).Name;
                         if (cbExceptColor.Checked)
                             LblExceptionValue.Text = HexConverter(clr);//.ToString();// + " = " + ToolTable.GetToolName(i);		
                         cbExceptColor.BackColor = clr;

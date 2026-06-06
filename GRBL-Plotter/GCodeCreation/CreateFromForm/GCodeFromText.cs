@@ -44,9 +44,11 @@
  * 2024-02-06 add process automation
  * 2024-02-22 UpdateToolTip proprties after loading ini-file
  * 2024-11-05 l:540 f:ShowTextSize also check if (textFont != null) issue #422
+ * 2026-03-05 SetActiveDevice 
+ 
  * 2026-06-02 add SetFontSize / SetAlignment / SetLineDistance for process-automation control
  * 2026-06-02 SetFontSize/SetLineDistance also set the data-bound setting (binding was reverting the control); SetFontSize also sizes the Windows font
- * 2026-03-05 SetActiveDevice 
+
 */
 
 using GrblPlotter.UserControls;
@@ -152,7 +154,8 @@ namespace GrblPlotter
             btnApply.PerformClick();
         }
 
-        // Set the text height in mm. Applies to the next CreateText, for BOTH font modes:
+/*********************************************************************/
+       // Set the text height in mm. Applies to the next CreateText, for BOTH font modes:
         //  - Hershey / LFF / SVG single-line font: NudFontSize (GCHeight).
         //  - Windows system font: the font em-size is used directly as mm (GraphicCollectText.AddText),
         //    so rebuild the font at the requested size too.
@@ -204,7 +207,7 @@ namespace GrblPlotter
             Properties.Settings.Default.createTextHersheyLineDistance = val;
             nUDFontLine.Value = val;
         }
-
+/********************************************************************/
         private void FillFontSelector()
         {
             cBFont.Items.Clear();

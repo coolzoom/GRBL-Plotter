@@ -267,7 +267,8 @@ namespace GrblPlotter
             }
             else
             {
-                lines = GCText.Replace("\r", "").Split('\n');    // accept \r\n and \n as line breaks
+            //    lines = GCText.Split('\n');
+				lines = GCText.Replace("\r", "").Split('\n');    // accept \r\n and \n as line breaks
             }
             int maxCharCount = 0;
             foreach (string tmp in lines)
