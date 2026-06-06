@@ -2126,6 +2126,11 @@ namespace GrblPlotter
             0,
             0});
             settings1.createTextHersheySelect = true;
+            settings1.createTextHersheySmoothCurveFittingError = new decimal(new int[] {
+            1,
+            0,
+            0,
+            0});
             settings1.createTextSystemFont = new System.Drawing.Font("Microsoft Sans Serif", 12F);
             settings1.createTextSystemFontSize = 16F;
             settings1.createTextSystemSizeX = new decimal(new int[] {
@@ -2215,11 +2220,23 @@ namespace GrblPlotter
             0,
             65536});
             settings1.DeviceLaserM3 = true;
+            settings1.DeviceLaserOffsetOrigin = true;
+            settings1.DeviceLaserOffsetOriginX = new decimal(new int[] {
+            0,
+            0,
+            0,
+            0});
+            settings1.DeviceLaserOffsetOriginY = new decimal(new int[] {
+            0,
+            0,
+            0,
+            0});
             settings1.DeviceLaserPasses = new decimal(new int[] {
             1,
             0,
             0,
             0});
+            settings1.DeviceLaserPathOptimation = true;
             settings1.DeviceLaserPower = new decimal(new int[] {
             50,
             0,
@@ -2304,6 +2321,18 @@ namespace GrblPlotter
             0,
             0,
             65536});
+            settings1.DevicePlotterOffsetOrigin = true;
+            settings1.DevicePlotterOffsetOriginX = new decimal(new int[] {
+            0,
+            0,
+            0,
+            0});
+            settings1.DevicePlotterOffsetOriginY = new decimal(new int[] {
+            0,
+            0,
+            0,
+            0});
+            settings1.DevicePlotterPathOptimation = true;
             settings1.DevicePlotterPenChangeRBAutomatic = false;
             settings1.DevicePlotterPenChangeRBManual = false;
             settings1.DevicePlotterPenChangeRBNo = true;
@@ -2343,6 +2372,18 @@ namespace GrblPlotter
             0,
             0,
             0});
+            settings1.DeviceRouterOffsetOrigin = true;
+            settings1.DeviceRouterOffsetOriginX = new decimal(new int[] {
+            0,
+            0,
+            0,
+            0});
+            settings1.DeviceRouterOffsetOriginY = new decimal(new int[] {
+            0,
+            0,
+            0,
+            0});
+            settings1.DeviceRouterPathOptimation = true;
             settings1.DeviceRouterSpeedXY = new decimal(new int[] {
             200,
             0,

@@ -44,84 +44,34 @@ namespace GrblPlotter
         private static XyzPoint codeInfo = new XyzPoint();
         private static bool simulateA = false;
 
-        private void BtnSimulate_Click(object sender, EventArgs e)
-        {
-            if ((!isStreaming) && (fCTBCode.LinesCount > 2))
-            {
-                codeInfo = new XyzPoint();  // reset old positions
-                if (!simuEnabled)
-                { SimuStart(Properties.Settings.Default.gui2DColorSimulation); }
-                else
-                { SimuStop(); }
-            }
-        }
         private void SimuStart(Color col)
         {
             ucdro.SetSimulationView(true,col);
-       /*     label_wx.ForeColor = col;
-            label_wy.ForeColor = col;
-            label_wz.ForeColor = col;
-            label_wa.ForeColor = col;
-            label_wb.ForeColor = col;
-            label_wc.ForeColor = col;
-
-            GroupColor invers = ContrastColor(col);
-            label_wx.BackColor = invers;
-            label_wy.BackColor = invers;
-            label_wz.BackColor = invers;
-            label_wa.BackColor = invers;
-            label_wb.BackColor = invers;
-            label_wc.BackColor = invers;*/
-
             simulateA = VisuGCode.ContainsTangential();
             if (simulateA)
                 UpdateWholeApplication();
 
-      //      pbFile.Maximum = fCTBCode.LinesCount;
             ucStreaming.SetProgressFileMax(fCTBCode.LinesCount); ;
-
 
             if (LineIsInRange(fCTBCodeClickedLineLast))
                 fCTBCode.UnbookmarkLine(fCTBCodeClickedLineLast);
 
-            //    btnSimulate.Text = Localization.GetString("mainSimuStop");
             simuLine = 0;
             fCTBCodeClickedLineNow = simuLine;
             fCTBCodeClickedLineLast = simuLine;
             simuEnabled = true;
             simulationTimer.Enabled = true;
-            //         VisuGCode.markSelectedFigure(-1);
-            //         VisuGCode.setPosMarkerLine(simuLine, false);
-            //    btnStreamStart.Enable = false;
-            //   btnStreamStop.Enable = false;
-            //   btnStreamCheck.Enable = false;
             ucStreaming.EnableButtonsStreaming(false);
-            //     btnSimulateFaster.Enable = true;
-            //     btnSimulateSlower.Enable = true;
             VisuGCode.Simulation.Reset();
 
             double factor = 100 * VisuGCode.Simulation.dt / 50;
             ucStreaming.SetTextTime(string.Format("{0} {1:0}%", Localization.GetString("mainSimuSpeed"), factor));
-            //    btnSimulatePause.Visible = true;
-            //     lbInfo.BackColor = System.Drawing.GroupColor.LightGreen;
             SetInfoLabel("Simulation started", Color.LightGreen);
         }
+
         private void SimuStop()
         {
             ucdro.SetSimulationView(false, Color.Black);
-         /*   label_wx.ForeColor = GroupColor.Black;
-            label_wy.ForeColor = GroupColor.Black;
-            label_wz.ForeColor = GroupColor.Black;
-            label_wa.ForeColor = GroupColor.Black;
-            label_wb.ForeColor = GroupColor.Black;
-            label_wc.ForeColor = GroupColor.Black;
-            GroupColor invers = Control.DefaultBackColor;
-            label_wx.BackColor = invers;
-            label_wy.BackColor = invers;
-            label_wz.BackColor = invers;
-            label_wa.BackColor = invers;
-            label_wb.BackColor = invers;
-            label_wc.BackColor = invers;*/
 
             if (simulateA)
             {
@@ -135,21 +85,11 @@ namespace GrblPlotter
 
             simuEnabled = false;
             simulationTimer.Enabled = false;
-            //     btnSimulate.Text = Localization.GetString("mainSimuStart");
-      //      pbFile.Value = 0;
             ucStreaming.SetProgressFile(0); ;
 
-            //    btnStreamStart.Enable = isConnected;
-            //    btnStreamStop.Enable = isConnected;
-            //    btnStreamCheck.Enable = isConnected;
             ucStreaming.EnableButtonsStreaming(isConnected);
-            //     btnSimulateFaster.Enable = false;
-            //     btnSimulateSlower.Enable = false;
-       //     lblFileProgress.Text = string.Format("{0} {1:0.0}%", Localization.GetString("mainProgress"), 0);
             ucStreaming.SetTextProgress(string.Format("{0} {1:0.0}%", Localization.GetString("mainProgress"), 0));
             ucStreaming.SetTextTime("Time");
-            //     btnSimulatePause.Visible = false;
-            //   lbInfo.BackColor = System.Drawing.SystemColors.Control;
             SetInfoLabel("Simulation stopped", SystemColors.Control);
             VisuGCode.Simulation.pathSimulation.Reset();
             pictureBox1.Invalidate();
@@ -164,7 +104,6 @@ namespace GrblPlotter
 
             if (LineIsInRange(simuLine))   //(simuLine >= 0)
             {
-                //  SetTextThreadSave(lbInfo, string.Format("Line {0}: {1}", (simuLine + 1), fCTBCode.Lines[simuLine]));
                 SetInfoLabel(string.Format("Line {0}: {1}", (simuLine + 1), fCTBCode.Lines[simuLine]), Color.LightGreen);
 
                 fCTBCode.Selection = fCTBCode.GetLine(simuLine);
@@ -172,7 +111,6 @@ namespace GrblPlotter
                 if (LineIsInRange(fCTBCodeClickedLineLast))
                     fCTBCode.UnbookmarkLine(fCTBCodeClickedLineLast);
 
-                //    fCTBCode.BookmarkLine(simuLine);
                 if (this.fCTBCode.InvokeRequired)
                 { this.fCTBCode.BeginInvoke((MethodInvoker)delegate () { this.fCTBCode.BookmarkLine(simuLine); }); }
                 else
@@ -183,14 +121,9 @@ namespace GrblPlotter
                 pictureBox1.Invalidate(); // avoid too much events
 
                 ucdro.SetWCO((GrblPoint)codeInfo);
-          /*      label_wx.Text = string.Format("{0:0.000}", codeInfo.X);
-                label_wy.Text = string.Format("{0:0.000}", codeInfo.Y);
-                label_wz.Text = string.Format("{0:0.000}", codeInfo.Z);
-                label_wa.Text = string.Format("{0:0.0}", codeInfo.A * 180 / Math.PI);
-          */  }
+            }
             else
             {
-                //   SetTextThreadSave(lbInfo, string.Format("Line {0}", (simuLine + 1)));
                 SetInfoLabel(string.Format("Line {0}", (simuLine + 1)), Color.LightGreen);
                 SimuStop();
                 simuLine = 0;   // Math.Abs(simuLine);
@@ -206,7 +139,6 @@ namespace GrblPlotter
                 if (LineIsInRange(fCTBCodeClickedLineLast))
                     fCTBCode.UnbookmarkLine(fCTBCodeClickedLineLast);
 
-                //    fCTBCode.BookmarkLine(simuLine);
                 if (this.fCTBCode.InvokeRequired)
                 { this.fCTBCode.BeginInvoke((MethodInvoker)delegate () { this.fCTBCode.BookmarkLine(simuLine); }); }
                 else
@@ -216,58 +148,19 @@ namespace GrblPlotter
                 fCTBCodeClickedLineLast = simuLine;
                 VisuGCode.Simulation.pathSimulation.Reset();
                 pictureBox1.Invalidate(); // avoid too much events
-                                          //     SetTextThreadSave(lbInfo, string.Format("Simulation finished"));
+
+                ucStreaming.SetStatusSimulationStart(false);
                 SetInfoLabel("Simulation finished", Color.LightGreen);
                 return;
             }
-       //     if (pbFile.Maximum < simuLine)
-         //   {
-         //       Logger.Error("SimulationTimer_Tick pbFile.Maximum < simuLine {0} {1}", pbFile.Maximum, simuLine);
-        //        pbFile.Maximum = simuLine;
-        //    }
-        //    pbFile.Value = simuLine;
             ucStreaming.SetProgressFile(simuLine); ;
 
             if ((fCTBCode.LinesCount - 2) > 0)
             {
-        //        lblFileProgress.Text = string.Format("{0} {1:0.0}%", Localization.GetString("mainProgress"), (100 * simuLine / (fCTBCode.LinesCount - 2)));
                 ucStreaming.SetTextProgress(string.Format("{0} {1:0.0}%", Localization.GetString("mainProgress"), (100 * simuLine / (fCTBCode.LinesCount - 2))));
             }
             pictureBox1.Invalidate();
         }
-
-        private void BtnSimulateFaster_Click(object sender, EventArgs e)
-        {
-            VisuGCode.Simulation.speedFactor *= 2;
-            VisuGCode.Simulation.dt *= 2;
-            VisuGCode.Simulation.dwell_ms /= 2;
-            if (VisuGCode.Simulation.dt == 32) VisuGCode.Simulation.dt = 25;
-            if (VisuGCode.Simulation.dt > 102400)
-                VisuGCode.Simulation.dt = 102400;
-   //         lblElapsed.Text = string.Format("{0} {1:0}%", Localization.GetString("mainSimuSpeed"), VisuGCode.Simulation.speedFactor);
-        }
-
-        private void BtnSimulateSlower_Click(object sender, EventArgs e)
-        {
-            VisuGCode.Simulation.speedFactor /= 2;
-            VisuGCode.Simulation.dt /= 2;
-            VisuGCode.Simulation.dwell_ms *= 2;
-            if (VisuGCode.Simulation.dt == 12) VisuGCode.Simulation.dt = 16;
-            if (VisuGCode.Simulation.dt <= 1)
-                VisuGCode.Simulation.dt = 1;
-     //       lblElapsed.Text = string.Format("{0} {1:0}%", Localization.GetString("mainSimuSpeed"), VisuGCode.Simulation.speedFactor);
-        }
-        private void BtnSimulatePause_Click(object sender, EventArgs e)
-        {
-            bool tmp = simulationTimer.Enabled;
-            simulationTimer.Enabled = !tmp;
-            /*      if (tmp)
-                      btnSimulatePause.Image = Properties.Resources.btn_play;
-                  else
-                      btnSimulatePause.Image = Properties.Resources.btn_pause;
-           */
-        }
-
         #endregion
     }
 }

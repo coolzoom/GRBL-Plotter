@@ -85,6 +85,8 @@ namespace GrblPlotter
             ucDevicePlotter.TcServoZAxis.SelectedIndexChanged += TC_RouterPlotterLaser_SelectedIndexChanged;
             TC_RouterPlotterLaser_SelectedIndexChanged(null, null);
             MyControl.GraphicImported = false;
+            MyControl.ProcessAutomationRunning = false;
+
             TC_RouterPlotterLaserLastSelected = tC_RouterPlotterLaser.SelectedIndex;
 
             if (Properties.Settings.Default.guiColorThemeEnable)
@@ -380,7 +382,7 @@ namespace GrblPlotter
                 if (!MyControl.ApplyToolList)
                     ucToolList.FillToolListElements();
                 //    ucToolList.ReloadNeded();
-                LoadProperties.Off();
+                //LoadProperties.Off(); move to UserControl.cs
                 if (tC_RouterPlotterLaser.SelectedIndex == 1)   // Plotter
                 {
                     //    Logger.Trace("Set width:{0}  Split2:{1}   2-width:{2}", splitContainer2.Width,splitContainer2.SplitterDistance, splitContainer2.Panel2.Width);

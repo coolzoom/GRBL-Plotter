@@ -34,6 +34,7 @@
  * 2024-08-24 l:126 f:MakeAbsolutePath add try catch for Path.IsPathRooted
  * 2026-04-09 GUI rework for vers. 1.8.0.0
  * 2026-04-09 Add ColorPalette
+ * 2026-06-06 fclinton: Bulk text-from-spreadsheet automation (xlsx import, text size/align/line, verify dimension, goto) #467
 */
 
 using GrblPlotter.Resources;
@@ -54,7 +55,7 @@ namespace GrblPlotter
 
     public static class MyApplication
     {
-        private static readonly string VersionAddOn = ".a";
+        private static readonly string VersionAddOn = "";   // ".a"
 
         internal static bool ESCwasPressed = false;
 

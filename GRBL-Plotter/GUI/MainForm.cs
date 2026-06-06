@@ -310,6 +310,7 @@ namespace GrblPlotter
                 Logger.Info(culture, "▲▲▲▲▲▲▲▲▲▲ MainForm SplashScreen Timer disabled  -> mainTimer:{0}", mainTimerCount);
                 timerUpdateControlSource = "SplashScreenTimer_Tick";
 
+                Logger.Trace("splitContainer2.SplitterDistance:{0}   splitContainer2.Panel1.Width:{1}   , splitContainer2.Panel2.Width:{2}", splitContainer2.SplitterDistance, splitContainer2.Panel1.Width, splitContainer2.Panel2.Width);
                 splitContainer2.SplitterDistance = Properties.Settings.Default.DeviceLaserSplitterDistance;
                 ucToolList.UpdateToolList();
 
@@ -433,7 +434,7 @@ namespace GrblPlotter
             overrideMessage = "";
             if (e.Enable)
                 overrideMessage = " !!! Override !!!";
-            //    lbInfo.Text = lastLabelInfoText + overrideMessage;
+
             SetInfoLabel(lastLabelInfoText + overrideMessage);
         }
 
@@ -717,11 +718,11 @@ namespace GrblPlotter
         private static void SetButtonColors(Button btn, Color col)
         {
             btn.BackColor = col;
-            btn.ForeColor = ContrastColor(col);
+            btn.ForeColor = Colors.ContrastColor(col);
             if (col == Control.DefaultBackColor)
                 btn.UseVisualStyleBackColor = true;
         }
-        private static Color ContrastColor(Color color)
+        private static Color ContrastColor123(Color color)
         {
             int d;
             // Counting the perceptive luminance - human eye favors green color... 
@@ -792,13 +793,6 @@ namespace GrblPlotter
             ucStreaming.ResetProgress();
             ucFlowControl.HighlightResume(false);
             SetInfoLabel("", SystemColors.Control);
-            /*    CbSpindle.CheckedChanged -= CbSpindle_CheckedChanged;
-                CbSpindle.Checked = false;
-                CbSpindle.CheckedChanged += CbSpindle_CheckedChanged;
-                CbCoolant.CheckedChanged -= CbSpindle_CheckedChanged;
-                CbCoolant.Checked = false;
-                CbCoolant.CheckedChanged += CbSpindle_CheckedChanged;
-            */
             UpdateControlEnables();
             ControlPowerSaving.EnableStandby();
         }
@@ -807,7 +801,6 @@ namespace GrblPlotter
         {
             SendRealtimeCommand('!');
             Logger.Trace("FeedHold");
-            //     signalResume = 1;
             timerUpdateControlSource = "grblFeedHold";
             UpdateControlEnables();	// true overwrite streaming
         }
@@ -817,11 +810,7 @@ namespace GrblPlotter
         {
             SendRealtimeCommand('~');
             Logger.Trace("Resume");
-            //   btnResume.BackColor = SystemColors.Control;
             ucFlowControl.HighlightResume(false);
-            //   signalResume = 0;
-            //    lbInfo.Text = "";
-            //    lbInfo.BackColor = SystemColors.Control;
             SetInfoLabel("", SystemColors.Control);
             timerUpdateControlSource = "grblResume";
             UpdateControlEnables();
@@ -831,11 +820,7 @@ namespace GrblPlotter
         {
             SendCommand("$X");
             Logger.Trace("KillAlarm");
-            //     signalLock = 0;
-            //     btnKillAlarm.BackColor = SystemColors.Control;
             ucFlowControl.HighlightKillAlarm(false);
-            //    lbInfo.Text = "";
-            //    lbInfo.BackColor = SystemColors.Control;
             SetInfoLabel("", SystemColors.Control);
             timerUpdateControlSource = "grblKillAlarm";
             UpdateControlEnables();
