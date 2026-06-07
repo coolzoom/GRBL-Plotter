@@ -114,7 +114,7 @@ any A,B,C,U,V,W commands will stay in place.
  
 ### My test bed
 On my german homepage:
-[my XYZ platform](http://svenhb.bplaced.net/?CNC___Plotter) 
+[my XYZ platform](http://svenhb.de/?CNC___Plotter) 
 
 ### GRBL-Plotter in tool change action
 [![Import an image](https://i9.ytimg.com/vi/GGtdwYdZWi8/mq2.jpg?sqp=COypi98F&rs=AOn4CLAbkofKlCN1cepOQkGvpG6YlnRwrQ)](https://youtu.be/GGtdwYdZWi8) 
