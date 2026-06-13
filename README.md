@@ -121,8 +121,8 @@ On my german homepage:
 
 ### Screenshots
 Main GUI
-<img width="1353" height="749" alt="image" src="https://github.com/user-attachments/assets/7dafa403-323b-4e5b-97c4-def812d1fe4d" />
- 
+ <img width="1354" height="841" alt="image" src="https://github.com/user-attachments/assets/2ab18ffc-c9ba-4dfd-a919-62132cbe7709" />
+
 Separate serial COM window(s) - one for the CNC, one for the tool changer (or 4th axis)  
 ![GRBL-Plotter COM interface](doc/GRBLPlotter_COM2.png?raw=true "Serial connection") ![2nd GRBL control](doc/GRBLPlotter_Control_COM2.png?raw=true "Serial connection")
 
