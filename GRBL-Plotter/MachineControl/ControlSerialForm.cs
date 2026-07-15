@@ -231,7 +231,6 @@ namespace GrblPlotter
 
         private void SerialForm_Load(object sender, EventArgs e)
         {
-            float dpi = (float)DeviceDpi / 96f;
             Size desktopSize = System.Windows.Forms.SystemInformation.PrimaryMonitorSize;
             SerialForm_Resize(sender, e);
             machineState.Clear();
@@ -248,10 +247,8 @@ namespace GrblPlotter
             {
                 Location = Properties.Settings.Default.locationSerForm1;
                 Size = Properties.Settings.Default.sizeSerForm1;
-                int minW = (int)(342 * dpi);
-                int minH = (int)(480 * dpi);
-                if ((Size.Width < minW) || (Size.Height < minH))
-                { Size = new Size(minW, minH); }
+                if ((Size.Width < 342) || (Size.Height < 480))
+                { Size = new Size(342, 480); }
             }
             else
             { Location = Properties.Settings.Default.locationSerForm2; }
@@ -307,26 +304,20 @@ namespace GrblPlotter
         }
         private void SerialForm_Resize(object sender, EventArgs e)
         {
-            float dpi = (float)DeviceDpi / 96f;
-            int m20 = (int)(20 * dpi);
-            int m205 = (int)(205 * dpi);
-            int m86 = (int)(86 * dpi);
-            int m84 = (int)(84 * dpi);
-            int m62 = (int)(62 * dpi);
-            rtbLog.Width = this.Width - m20;
-            rtbLog.Height = this.Height - m205;
-            btnClear.Location = new Point(btnClear.Location.X, this.Height - m86);
-            cBCommand.Location = new Point(cBCommand.Location.X, this.Height - m84);
-            btnSend.Location = new Point(btnSend.Location.X, this.Height - m86);
-            btnGRBLCommand0.Location = new Point(btnGRBLCommand0.Location.X, this.Height - m62);
-            btnGRBLCommand1.Location = new Point(btnGRBLCommand1.Location.X, this.Height - m62);
-            btnGRBLCommand2.Location = new Point(btnGRBLCommand2.Location.X, this.Height - m62);
-            btnGRBLCmndParser.Location = new Point(btnGRBLCmndParser.Location.X, this.Height - m62);
-            btnGRBLCmndBuild.Location = new Point(btnGRBLCmndBuild.Location.X, this.Height - m62);
-            btnGRBLCommand3.Location = new Point(btnGRBLCommand3.Location.X, this.Height - m62);
-            btnGRBLCommand4.Location = new Point(btnGRBLCommand4.Location.X, this.Height - m62);
-            btnGRBLReset.Location = new Point(btnGRBLReset.Location.X, this.Height - m62);
-            btnGRBLHardReset.Location = new Point(btnGRBLHardReset.Location.X, this.Height - m62);
+            rtbLog.Width = this.Width - 20;
+            rtbLog.Height = this.Height - 205;
+            btnClear.Location = new Point(btnClear.Location.X, this.Height - 86);
+            cBCommand.Location = new Point(cBCommand.Location.X, this.Height - 84);
+            btnSend.Location = new Point(btnSend.Location.X, this.Height - 86);
+            btnGRBLCommand0.Location = new Point(btnGRBLCommand0.Location.X, this.Height - 62);
+            btnGRBLCommand1.Location = new Point(btnGRBLCommand1.Location.X, this.Height - 62);
+            btnGRBLCommand2.Location = new Point(btnGRBLCommand2.Location.X, this.Height - 62);
+            btnGRBLCmndParser.Location = new Point(btnGRBLCmndParser.Location.X, this.Height - 62);
+            btnGRBLCmndBuild.Location = new Point(btnGRBLCmndBuild.Location.X, this.Height - 62);
+            btnGRBLCommand3.Location = new Point(btnGRBLCommand3.Location.X, this.Height - 62);
+            btnGRBLCommand4.Location = new Point(btnGRBLCommand4.Location.X, this.Height - 62);
+            btnGRBLReset.Location = new Point(btnGRBLReset.Location.X, this.Height - 62);
+            btnGRBLHardReset.Location = new Point(btnGRBLHardReset.Location.X, this.Height - 62);
         }
 
         protected override void OnKeyDown(KeyEventArgs e)
