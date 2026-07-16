@@ -14,26 +14,70 @@
   <DockPanel>
     <Menu DockPanel.Dock="Top">
       <MenuItem Header="_File">
-        <MenuItem Header="Open G-Code…" Command="{Binding OpenFileCommand}" InputGestureText="Ctrl+O"/>
-        <MenuItem Header="Save G-Code…" Command="{Binding SaveFileCommand}" InputGestureText="Ctrl+S"/>
+        <MenuItem Header="Open…" Command="{Binding OpenFileCommand}" InputGestureText="Ctrl+O"/>
+        <MenuItem Header="Save…" Command="{Binding SaveFileCommand}" InputGestureText="Ctrl+S"/>
+        <MenuItem Header="Clear workspace" Command="{Binding ClearWorkspaceCommand}"/>
+        <MenuItem Header="Undo" Command="{Binding UndoCommand}" InputGestureText="Ctrl+Z"/>
         <Separator/>
-        <MenuItem Header="Apply editor / reparse" Command="{Binding ApplyEditorCommand}"/>
+        <MenuItem Header="Setup…" Click="OpenSetup_Click"/>
+        <MenuItem Header="About…" Click="OpenAbout_Click"/>
         <Separator/>
         <MenuItem Header="Exit" Click="Exit_Click"/>
       </MenuItem>
       <MenuItem Header="_G-Code Creation">
-        <MenuItem Header="(Import SVG/DXF — use WinForms build for full pipeline)" IsEnabled="False"/>
+        <MenuItem Header="Import any (SVG/DXF/HPGL/Gerber/Image/CSV)…" Command="{Binding OpenFileCommand}"/>
+        <Separator/>
+        <MenuItem Header="Text…" Click="OpenText_Click"/>
+        <MenuItem Header="Shape…" Click="OpenShape_Click"/>
+        <MenuItem Header="Image engraving…" Click="OpenImage_Click"/>
+        <MenuItem Header="Barcode…" Click="OpenBarcode_Click"/>
+        <MenuItem Header="Wire cutter…" Click="OpenWire_Click"/>
       </MenuItem>
       <MenuItem Header="_G-Code Transform">
-        <MenuItem Header="Reparse from editor" Command="{Binding ApplyEditorCommand}"/>
+        <MenuItem Header="Mirror X" Command="{Binding TransformMirrorXCommand}"/>
+        <MenuItem Header="Mirror Y" Command="{Binding TransformMirrorYCommand}"/>
+        <MenuItem Header="Rotate" Command="{Binding ApplyRotateTransformCommand}"/>
+        <MenuItem Header="Scale" Command="{Binding ApplyScaleTransformCommand}"/>
+        <MenuItem Header="Translate" Command="{Binding ApplyTranslateTransformCommand}"/>
+        <Separator/>
+        <MenuItem Header="Origin → Center" Command="{Binding TransformOriginCenterCommand}"/>
+        <MenuItem Header="Origin → Min XY" Command="{Binding TransformOriginMinCommand}"/>
+        <MenuItem Header="Reverse paths" Command="{Binding TransformReverseCommand}"/>
+        <Separator/>
+        <MenuItem Header="Reparse editor" Command="{Binding ApplyEditorCommand}"/>
       </MenuItem>
       <MenuItem Header="_Workpiece">
         <MenuItem Header="Home ($H)" Command="{Binding HomeMachineCommand}"/>
         <MenuItem Header="Zero XYZ" Command="{Binding ZeroXyzCommand}"/>
+        <MenuItem Header="Zero XY" Command="{Binding ZeroXyCommand}"/>
+        <Separator/>
+        <MenuItem Header="Coordinate systems…" Click="OpenCoord_Click"/>
+        <MenuItem Header="G54" Command="{Binding SelectCoordCommand}" CommandParameter="G54"/>
+        <MenuItem Header="G55" Command="{Binding SelectCoordCommand}" CommandParameter="G55"/>
+        <MenuItem Header="G56" Command="{Binding SelectCoordCommand}" CommandParameter="G56"/>
+        <Separator/>
+        <MenuItem Header="Probing…" Click="OpenProbing_Click"/>
+        <MenuItem Header="Height map…" Click="OpenHeightMap_Click"/>
       </MenuItem>
       <MenuItem Header="_Machine">
-        <MenuItem Header="COM CNC window…" Click="OpenSerial_Click"/>
+        <MenuItem Header="COM CNC…" Click="OpenSerial_Click"/>
+        <MenuItem Header="2nd Serial / DIY…" Click="OpenSecondSerial_Click"/>
         <MenuItem Header="Refresh ports" Command="{Binding RefreshPortsCommand}"/>
+        <Separator/>
+        <MenuItem Header="Camera…" Click="OpenCamera_Click"/>
+        <MenuItem Header="Projector…" Click="OpenProjector_Click"/>
+        <MenuItem Header="Process automation…" Click="OpenAutomation_Click"/>
+        <Separator/>
+        <MenuItem Header="Soft RESET" Command="{Binding SoftResetCommand}"/>
+        <MenuItem Header="Kill Alarm $X" Command="{Binding KillAlarmCommand}"/>
+        <MenuItem Header="Feed Hold" Command="{Binding FeedHoldCommand}"/>
+        <MenuItem Header="Cycle Start" Command="{Binding CycleStartCommand}"/>
+      </MenuItem>
+      <MenuItem Header="_Simulation">
+        <MenuItem Header="Start" Command="{Binding SimStartCommand}"/>
+        <MenuItem Header="Pause" Command="{Binding SimPauseCommand}"/>
+        <MenuItem Header="Resume" Command="{Binding SimResumeCommand}"/>
+        <MenuItem Header="Stop" Command="{Binding SimStopCommand}"/>
       </MenuItem>
     </Menu>
 
@@ -78,7 +122,15 @@
                 <Button Content="Pause / Hold" Command="{Binding StreamPauseCommand}" Style="{StaticResource GhostButton}"/>
                 <Button Content="Resume" Command="{Binding StreamResumeCommand}" Style="{StaticResource GhostButton}"/>
               </UniformGrid>
+              <TextBlock Text="Simulation" Margin="0,8,0,2" Foreground="{StaticResource TextMutedBrush}"/>
+              <UniformGrid Columns="4">
+                <Button Content="Sim" Command="{Binding SimStartCommand}" Style="{StaticResource GhostButton}"/>
+                <Button Content="❚❚" Command="{Binding SimPauseCommand}" Style="{StaticResource GhostButton}"/>
+                <Button Content="▶" Command="{Binding SimResumeCommand}" Style="{StaticResource GhostButton}"/>
+                <Button Content="■" Command="{Binding SimStopCommand}" Style="{StaticResource GhostButton}"/>
+              </UniformGrid>
               <TextBlock Text="{Binding FileLabel}" Margin="0,4,0,0" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
+              <TextBlock Text="{Binding DimensionText, StringFormat=Dim {0}}" Foreground="{StaticResource TextMutedBrush}"/>
             </StackPanel>
           </Border>
 
@@ -136,6 +188,49 @@
                 <Button Content="BC" Command="{Binding SetOriginCornerCommand}" CommandParameter="BotCenter" Style="{StaticResource GhostButton}"/>
                 <Button Content="BR" Command="{Binding SetOriginCornerCommand}" CommandParameter="BotRight" Style="{StaticResource GhostButton}"/>
               </UniformGrid>
+            </StackPanel>
+          </Border>
+
+          <!-- Transform -->
+          <Border Style="{StaticResource PanelBorder}">
+            <StackPanel>
+              <TextBlock Text="Transform" Style="{StaticResource PanelHeader}"/>
+              <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="50"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+                <TextBlock Text="Scale" VerticalAlignment="Center"/><TextBox Grid.Column="1" Text="{Binding TransformScale}"/>
+                <TextBlock Grid.Row="1" Text="Rot°" VerticalAlignment="Center"/><TextBox Grid.Row="1" Grid.Column="1" Text="{Binding TransformRotate}"/>
+                <TextBlock Grid.Row="2" Text="dX" VerticalAlignment="Center"/><TextBox Grid.Row="2" Grid.Column="1" Text="{Binding TransformDx}"/>
+                <TextBlock Grid.Row="3" Text="dY" VerticalAlignment="Center"/><TextBox Grid.Row="3" Grid.Column="1" Text="{Binding TransformDy}"/>
+              </Grid>
+              <UniformGrid Columns="3" Margin="0,4,0,0">
+                <Button Content="Scale" Command="{Binding ApplyScaleTransformCommand}" Style="{StaticResource GhostButton}"/>
+                <Button Content="Rotate" Command="{Binding ApplyRotateTransformCommand}" Style="{StaticResource GhostButton}"/>
+                <Button Content="Move" Command="{Binding ApplyTranslateTransformCommand}" Style="{StaticResource GhostButton}"/>
+                <Button Content="Mir X" Command="{Binding TransformMirrorXCommand}" Style="{StaticResource GhostButton}"/>
+                <Button Content="Mir Y" Command="{Binding TransformMirrorYCommand}" Style="{StaticResource GhostButton}"/>
+                <Button Content="Rev" Command="{Binding TransformReverseCommand}" Style="{StaticResource GhostButton}"/>
+              </UniformGrid>
+            </StackPanel>
+          </Border>
+
+          <!-- Custom buttons -->
+          <Border Style="{StaticResource PanelBorder}">
+            <StackPanel>
+              <TextBlock Text="Custom / Scripts" Style="{StaticResource PanelHeader}"/>
+              <ItemsControl ItemsSource="{Binding CustomButtons}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <UniformGrid Columns="4"/>
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Button Content="{Binding Label}" Command="{Binding DataContext.RunCustomCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                            CommandParameter="{Binding}" Style="{StaticResource GhostButton}" Margin="1" FontSize="11"/>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
             </StackPanel>
           </Border>
 
@@ -203,6 +298,10 @@
               <Canvas Width="400" Height="300">
                 <Path Stroke="#FF6FBF8A" StrokeThickness="1.2" Data="{Binding ToolpathGeometry}"/>
                 <Path Stroke="#FF4A90A4" StrokeThickness="0.8" StrokeDashArray="2 2" Data="{Binding RapidGeometry}"/>
+                <Ellipse Width="8" Height="8" Fill="#FFE6C35C" Stroke="#FF1A1F26" StrokeThickness="1"
+                         Visibility="{Binding SimMarkerVisibility}"
+                         Canvas.Left="{Binding SimX}" Canvas.Top="{Binding SimY}"
+                         Margin="-4,-4,0,0"/>
               </Canvas>
             </Viewbox>
           </Grid>

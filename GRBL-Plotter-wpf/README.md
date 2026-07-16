@@ -1,6 +1,6 @@
 # GRBL-Plotter WPF
 
-WPF rewrite of GRBL-Plotter with an industrial dark theme (slate + teal).
+Industrial-themed WPF port of GRBL-Plotter (.NET 8).
 
 ## Run
 
@@ -8,30 +8,17 @@ WPF rewrite of GRBL-Plotter with an industrial dark theme (slate + teal).
 dotnet run --project src\GrblPlotter.Wpf\GrblPlotter.Wpf.csproj -c Debug
 ```
 
-Or open `GRBL-Plotter-Wpf.slnx` in Visual Studio / Cursor.
+EXE: `src\GrblPlotter.Wpf\bin\Debug\net8.0-windows\GRBL-Plotter-Wpf.exe`
 
-Output: `src\GrblPlotter.Wpf\bin\Debug\net8.0-windows\GRBL-Plotter-Wpf.exe`
+## Capabilities (aligned with WinForms)
 
-## Implemented (core parity)
+- **Machine:** COM CNC, 2nd serial, soft reset, hold/resume, overrides, jog, home, coord systems G54–G59
+- **Streaming:** Start / Check ($C) / Pause / Resume / Stop + path simulation
+- **Import:** SVG, DXF, HPGL/PLT, Gerber, CSV/Excellon, images, G-code (drag-drop supported)
+- **Create:** Text, Shape, Image engraving, Barcode, Wire-cutter paths
+- **Transform:** Mirror, scale, rotate, translate, reverse, origin presets
+- **Workpiece tools:** Probing, Height map (probe + apply Z), Camera teach offsets, Projector overlay
+- **Automation:** Step list (Send / Wait / WaitIdle / Probe / LoadFile / Message)
+- **Setup / About:** JSON settings under `%AppData%\GRBL-Plotter-Wpf\`
 
-- Main shell matching WinForms layout (left stream/flow/overrides/origin, center DRO + workspace, right devices/jog/COM)
-- Serial connect / disconnect, port scan, baud select
-- GRBL realtime: `? ! ~` Ctrl-X, `$X`, `$H`, overrides
-- Status parse: `<Idle|MPos|WPos|WCO|FS|Ov>`
-- G-code open/save/drag-drop, editor reparse
-- Character-counting style streamer (Start / Check / Pause / Resume / Stop)
-- 2D toolpath preview (G0/G1)
-- Laser / Plotter / Router device tabs
-- Jog ($J), zero axes, COM CNC window + log
-- Industrial theme + brand placeholder image
-
-## Not yet ported (see PLAN.md)
-
-- Full SVG/DXF/HPGL import & Graphic pipeline
-- Camera, HeightMap, Process Automation
-- Localization packs
-- Exact WinForms pixel layouts
-
-## Theme
-
-Defined in `Themes/IndustrialTheme.xaml` — deep slate backgrounds, teal accent `#3D8B8A`, danger red for RESET.
+See `FEATURE_PARITY.md` and `PLAN.md` for details and remaining gaps (live webcam SDK, full hatch/tangential graphic pipeline, GamePad, full i18n).

@@ -1,6 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
-using System.Text;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -8,6 +8,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GrblPlotter.Wpf.Models;
 using GrblPlotter.Wpf.Services;
+using GrblPlotter.Wpf.Services.Import;
+using GrblPlotter.Wpf.Services.Transform;
 using Microsoft.Win32;
 
 namespace GrblPlotter.Wpf.ViewModels;
@@ -16,12 +18,17 @@ public partial class MainViewModel : ObservableObject
 {
     private readonly GrblSerialService _serial = new();
     private readonly GCodeStreamer _streamer;
+    private readonly PathSimulator _simulator = new();
     private readonly DispatcherTimer _uiTimer;
+    private readonly Stack<string> _undoStack = new();
+    private readonly AppSettings _settings;
 
     public GrblSerialService Serial => _serial;
+    public AppSettings Settings => _settings;
     public ObservableCollection<string> LogLines { get; } = new();
     public ObservableCollection<string> Ports { get; } = new();
     public ObservableCollection<int> BaudRates { get; } = new() { 9600, 19200, 38400, 57600, 115200, 230400 };
+    public ObservableCollection<CustomButtonItem> CustomButtons { get; } = new();
 
     [ObservableProperty] private string _selectedPort = "";
     [ObservableProperty] private int _selectedBaud = 115200;
@@ -38,12 +45,16 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _machineY = "00000.000";
     [ObservableProperty] private string _machineZ = "00000.000";
     [ObservableProperty] private string _coordSystem = "G54";
+    [ObservableProperty] private double _feedRate;
+    [ObservableProperty] private double _spindleRate;
 
     [ObservableProperty] private string _gcodeText = "";
     [ObservableProperty] private string _fileLabel = "nothing loaded";
     [ObservableProperty] private double _streamProgress;
     [ObservableProperty] private string _streamInfo = "Prog 0%  Time —";
     [ObservableProperty] private bool _isStreaming;
+    [ObservableProperty] private bool _isSimulating;
+    [ObservableProperty] private string _dimensionText = "—";
 
     [ObservableProperty] private int _ovFeed = 100;
     [ObservableProperty] private int _ovRapid = 100;
@@ -69,11 +80,36 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private Geometry? _rapidGeometry;
     [ObservableProperty] private ImageSource? _placeholderImage;
     [ObservableProperty] private bool _showPlaceholder = true;
+    [ObservableProperty] private double _simX;
+    [ObservableProperty] private double _simY;
+    [ObservableProperty] private Visibility _simMarkerVisibility = Visibility.Collapsed;
+
+    [ObservableProperty] private double _transformScale = 1.0;
+    [ObservableProperty] private double _transformRotate = 90;
+    [ObservableProperty] private double _transformDx;
+    [ObservableProperty] private double _transformDy;
 
     public GCodeDocument Document { get; private set; } = new();
+    public AxisPosition CurrentWorkPos { get; } = new();
 
     public MainViewModel()
     {
+        _settings = AppSettings.Load();
+        SelectedBaud = _settings.Connection.LastBaud;
+        SelectedPort = _settings.Connection.LastPort ?? "";
+        LaserPower = _settings.Devices.Laser.Power;
+        LaserSpeed = _settings.Devices.Laser.Speed;
+        LaserPasses = _settings.Devices.Laser.Passes;
+        AirAssist = _settings.Devices.Laser.AirAssist;
+        PlotterZUp = _settings.Devices.Plotter.ZUp;
+        PlotterZDown = _settings.Devices.Plotter.ZDown;
+        PlotterSpeed = _settings.Devices.Plotter.Speed;
+        RouterSpeedXy = _settings.Devices.Router.SpeedXy;
+        RouterSpeedZ = _settings.Devices.Router.SpeedZ;
+        RouterDepth = _settings.Devices.Router.Depth;
+        JogStep = _settings.JogStep;
+        JogFeed = _settings.JogFeed;
+
         _streamer = new GCodeStreamer(_serial);
         _serial.LogReceived += OnLog;
         _serial.StatusUpdated += OnStatus;
@@ -104,6 +140,33 @@ public partial class MainViewModel : ObservableObject
             });
         };
 
+        _simulator.PositionChanged += p =>
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                SimX = p.X;
+                SimY = -p.Y;
+                SimMarkerVisibility = Visibility.Visible;
+            });
+        };
+        _simulator.ProgressChanged += pct =>
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                StreamProgress = pct * 100;
+                StreamInfo = $"Sim {pct * 100:0}%";
+            });
+        };
+        _simulator.Completed += () =>
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                IsSimulating = false;
+                StatusBanner = "simulation complete";
+                SimMarkerVisibility = Visibility.Collapsed;
+            });
+        };
+
         try
         {
             PlaceholderImage = new System.Windows.Media.Imaging.BitmapImage(
@@ -111,14 +174,65 @@ public partial class MainViewModel : ObservableObject
         }
         catch { /* optional */ }
 
+        LoadCustomButtons();
         RefreshPorts();
+        if (!string.IsNullOrEmpty(_settings.Connection.LastPort) && Ports.Contains(_settings.Connection.LastPort))
+            SelectedPort = _settings.Connection.LastPort;
+
         _uiTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         _uiTimer.Tick += (_, _) => { if (!IsConnected) RefreshPorts(); };
         _uiTimer.Start();
     }
 
+    private void LoadCustomButtons()
+    {
+        CustomButtons.Clear();
+        var defaults = new[]
+        {
+            new CustomButtonItem("Home", "$H"),
+            new CustomButtonItem("Unlock", "$X"),
+            new CustomButtonItem("Sleep", "$SLP"),
+            new CustomButtonItem("$$", "$$"),
+            new CustomButtonItem("$G", "$G"),
+            new CustomButtonItem("M5", "M5"),
+            new CustomButtonItem("M8", "M8"),
+            new CustomButtonItem("M9", "M9"),
+        };
+        foreach (var b in defaults) CustomButtons.Add(b);
+        foreach (var b in _settings.CustomButtons)
+            CustomButtons.Add(new CustomButtonItem(b.Label, b.Code));
+    }
+
     private void RefreshTitle() =>
         WindowTitle = $"GRBL Plotter WPF Ver.:1.8.0.2 | grbl: {ConnectionText}";
+
+    private void PushUndo()
+    {
+        _undoStack.Push(GcodeText);
+        while (_undoStack.Count > 30) { var tmp = _undoStack.Reverse().Take(30).Reverse().ToList(); _undoStack.Clear(); foreach (var t in tmp) _undoStack.Push(t); }
+    }
+
+    public void ApplyDocument(GCodeDocument doc, bool pushUndo = true)
+    {
+        if (pushUndo) PushUndo();
+        Document = doc;
+        GcodeText = string.Join(Environment.NewLine, doc.Lines);
+        FileLabel = doc.FileName;
+        _streamer.Load(doc);
+        _simulator.Load(doc);
+        BuildPreview();
+        ShowPlaceholder = doc.Segments.Count == 0;
+        DimensionText = doc.Segments.Count == 0
+            ? "—"
+            : $"X:{doc.MinX:0.###}…{doc.MaxX:0.###}  Y:{doc.MinY:0.###}…{doc.MaxY:0.###}";
+        StatusBanner = $"loaded {doc.FileName}  ({doc.Lines.Count} lines, {doc.Segments.Count} segs)";
+    }
+
+    public void ApplyGeneratedGCode(string gcode, string name = "generated")
+    {
+        var doc = GCodeParser.Parse(gcode, name);
+        ApplyDocument(doc);
+    }
 
     [RelayCommand]
     private void RefreshPorts()
@@ -146,6 +260,9 @@ public partial class MainViewModel : ObservableObject
                     return;
                 }
                 _serial.Connect(SelectedPort, SelectedBaud);
+                _settings.Connection.LastPort = SelectedPort;
+                _settings.Connection.LastBaud = SelectedBaud;
+                _settings.Save();
             }
         }
         catch (Exception ex)
@@ -160,7 +277,13 @@ public partial class MainViewModel : ObservableObject
     {
         var dlg = new OpenFileDialog
         {
-            Filter = "G-Code (*.nc;*.gcode;*.ngc;*.tap)|*.nc;*.gcode;*.ngc;*.tap|All files (*.*)|*.*"
+            Filter =
+                "All supported|*.nc;*.gcode;*.ngc;*.tap;*.svg;*.dxf;*.hpgl;*.plt;*.gbr;*.ger;*.csv;*.txt;*.png;*.jpg;*.jpeg;*.bmp|" +
+                "G-Code|*.nc;*.gcode;*.ngc;*.tap|" +
+                "Vector|*.svg;*.dxf;*.hpgl;*.plt|" +
+                "Gerber/Drill|*.gbr;*.ger;*.csv|" +
+                "Images|*.png;*.jpg;*.jpeg;*.bmp|" +
+                "All files|*.*"
         };
         if (dlg.ShowDialog() != true) return;
         LoadPath(dlg.FileName);
@@ -168,13 +291,16 @@ public partial class MainViewModel : ObservableObject
 
     public void LoadPath(string path)
     {
-        Document = GCodeParser.LoadFile(path);
-        GcodeText = string.Join(Environment.NewLine, Document.Lines);
-        FileLabel = Document.FileName;
-        StatusBanner = $"loaded {Document.FileName}  ({Document.Lines.Count} lines)";
-        _streamer.Load(Document);
-        BuildPreview();
-        ShowPlaceholder = Document.Segments.Count == 0;
+        try
+        {
+            var doc = ImportFacade.OpenAny(path);
+            ApplyDocument(doc);
+        }
+        catch (Exception ex)
+        {
+            StatusBanner = $"Load failed: {ex.Message}";
+            OnLog($"[ERROR] {ex.Message}");
+        }
     }
 
     [RelayCommand]
@@ -191,11 +317,43 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void ApplyEditor()
     {
+        PushUndo();
         Document = GCodeParser.Parse(GcodeText, Document.FilePath);
         _streamer.Load(Document);
+        _simulator.Load(Document);
         BuildPreview();
         ShowPlaceholder = Document.Segments.Count == 0;
+        DimensionText = Document.Segments.Count == 0
+            ? "—"
+            : $"X:{Document.MinX:0.###}…{Document.MaxX:0.###}  Y:{Document.MinY:0.###}…{Document.MaxY:0.###}";
         StatusBanner = $"parsed {Document.Lines.Count} lines / {Document.Segments.Count} segments";
+    }
+
+    [RelayCommand]
+    private void Undo()
+    {
+        if (_undoStack.Count == 0) { StatusBanner = "nothing to undo"; return; }
+        GcodeText = _undoStack.Pop();
+        Document = GCodeParser.Parse(GcodeText, Document.FilePath);
+        _streamer.Load(Document);
+        _simulator.Load(Document);
+        BuildPreview();
+        ShowPlaceholder = Document.Segments.Count == 0;
+        StatusBanner = "undo";
+    }
+
+    [RelayCommand]
+    private void ClearWorkspace()
+    {
+        PushUndo();
+        Document = new GCodeDocument();
+        GcodeText = "";
+        FileLabel = "nothing loaded";
+        ToolpathGeometry = null;
+        RapidGeometry = null;
+        ShowPlaceholder = true;
+        DimensionText = "—";
+        StatusBanner = "workspace cleared";
     }
 
     private void BuildPreview()
@@ -218,11 +376,124 @@ public partial class MainViewModel : ObservableObject
         RapidGeometry = rapid;
     }
 
+    private void AfterTransform()
+    {
+        GcodeText = string.Join(Environment.NewLine, Document.Lines);
+        _streamer.Load(Document);
+        _simulator.Load(Document);
+        BuildPreview();
+        ShowPlaceholder = Document.Segments.Count == 0;
+        DimensionText = Document.Segments.Count == 0
+            ? "—"
+            : $"X:{Document.MinX:0.###}…{Document.MaxX:0.###}  Y:{Document.MinY:0.###}…{Document.MaxY:0.###}";
+    }
+
+    [RelayCommand]
+    private void TransformMirrorX()
+    {
+        if (Document.Segments.Count == 0) return;
+        PushUndo();
+        GCodeTransformService.MirrorX(Document);
+        AfterTransform();
+        StatusBanner = "mirrored X";
+    }
+
+    [RelayCommand]
+    private void TransformMirrorY()
+    {
+        if (Document.Segments.Count == 0) return;
+        PushUndo();
+        GCodeTransformService.MirrorY(Document);
+        AfterTransform();
+        StatusBanner = "mirrored Y";
+    }
+
+    [RelayCommand]
+    private void ApplyRotateTransform()
+    {
+        if (Document.Segments.Count == 0) return;
+        PushUndo();
+        GCodeTransformService.Rotate(Document, TransformRotate, aroundBboxCenter: true);
+        AfterTransform();
+        StatusBanner = $"rotated {TransformRotate}°";
+    }
+
+    [RelayCommand]
+    private void ApplyScaleTransform()
+    {
+        if (Document.Segments.Count == 0) return;
+        PushUndo();
+        GCodeTransformService.Scale(Document, TransformScale, aroundBboxCenter: true);
+        AfterTransform();
+        StatusBanner = $"scaled ×{TransformScale}";
+    }
+
+    [RelayCommand]
+    private void ApplyTranslateTransform()
+    {
+        if (Document.Segments.Count == 0) return;
+        PushUndo();
+        GCodeTransformService.Translate(Document, TransformDx, TransformDy);
+        AfterTransform();
+        StatusBanner = $"translated {TransformDx},{TransformDy}";
+    }
+
+    [RelayCommand]
+    private void TransformOriginCenter()
+    {
+        if (Document.Segments.Count == 0) return;
+        PushUndo();
+        GCodeTransformService.SetOriginToCenter(Document);
+        AfterTransform();
+        StatusBanner = "origin → center";
+    }
+
+    [RelayCommand]
+    private void TransformOriginMin()
+    {
+        if (Document.Segments.Count == 0) return;
+        PushUndo();
+        GCodeTransformService.SetOriginToMinXY(Document);
+        AfterTransform();
+        StatusBanner = "origin → min XY";
+    }
+
+    [RelayCommand]
+    private void TransformReverse()
+    {
+        if (Document.Segments.Count == 0) return;
+        PushUndo();
+        GCodeTransformService.Reverse(Document);
+        AfterTransform();
+        StatusBanner = "paths reversed";
+    }
+
     [RelayCommand] private void StreamStart() { ApplyEditor(); _streamer.Start(false); StatusBanner = "streaming…"; }
     [RelayCommand] private void StreamCheck() { ApplyEditor(); _streamer.Start(true); StatusBanner = "check mode…"; }
     [RelayCommand] private void StreamPause() => _streamer.Pause();
     [RelayCommand] private void StreamResume() => _streamer.Resume();
     [RelayCommand] private void StreamStop() { _streamer.Stop(); StatusBanner = "stopped"; }
+
+    [RelayCommand]
+    private void SimStart()
+    {
+        ApplyEditor();
+        _simulator.Load(Document);
+        IsSimulating = true;
+        _simulator.Start();
+        StatusBanner = "simulating…";
+    }
+
+    [RelayCommand] private void SimPause() => _simulator.Pause();
+    [RelayCommand] private void SimResume() => _simulator.Resume();
+    [RelayCommand]
+    private void SimStop()
+    {
+        _simulator.Stop();
+        IsSimulating = false;
+        SimMarkerVisibility = Visibility.Collapsed;
+        StatusBanner = "simulation stopped";
+    }
 
     [RelayCommand] private void FeedHold() => _serial.FeedHold();
     [RelayCommand] private void CycleStart() => _serial.CycleStart();
@@ -240,12 +511,11 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void Jog(string axisDir)
     {
-        // axisDir like "X+" "Y-" "Z+"
         if (axisDir.Length < 2) return;
         var axis = axisDir[0];
         var sign = axisDir[1] == '-' ? -1 : 1;
         var d = JogStep * sign;
-        _serial.SendLine($"$J=G91 G21 {axis}{d.ToString(System.Globalization.CultureInfo.InvariantCulture)} F{JogFeed.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+        _serial.SendLine($"$J=G91 G21 {axis}{d.ToString(CultureInfo.InvariantCulture)} F{JogFeed.ToString(CultureInfo.InvariantCulture)}");
     }
 
     [RelayCommand] private void JogCancel() => _serial.SendRealtime(0x85);
@@ -268,6 +538,17 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void RunCustom(CustomButtonItem? item)
+    {
+        if (item == null || string.IsNullOrWhiteSpace(item.Code)) return;
+        foreach (var line in item.Code.Replace("\r\n", "\n").Split('\n'))
+        {
+            var t = line.Trim();
+            if (t.Length > 0) _serial.SendLine(t);
+        }
+    }
+
+    [RelayCommand]
     private void LaserOn()
     {
         _serial.SendLine($"M3 S{LaserPower}");
@@ -279,26 +560,64 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void ApplyLaserDefaults()
     {
-        StatusBanner = $"Laser defaults: S{LaserPower} F{LaserSpeed} passes={LaserPasses}";
+        _settings.Devices.Laser.Power = LaserPower;
+        _settings.Devices.Laser.Speed = LaserSpeed;
+        _settings.Devices.Laser.Passes = LaserPasses;
+        _settings.Devices.Laser.AirAssist = AirAssist;
+        _settings.Save();
+        StatusBanner = $"Laser defaults saved: S{LaserPower} F{LaserSpeed} passes={LaserPasses}";
     }
 
     [RelayCommand]
     private void ApplyPlotterDefaults()
     {
-        StatusBanner = $"Plotter Zup={PlotterZUp} Zdown={PlotterZDown} F={PlotterSpeed}";
+        _settings.Devices.Plotter.ZUp = PlotterZUp;
+        _settings.Devices.Plotter.ZDown = PlotterZDown;
+        _settings.Devices.Plotter.Speed = PlotterSpeed;
+        _settings.Save();
+        StatusBanner = $"Plotter defaults saved";
     }
 
     [RelayCommand]
     private void ApplyRouterDefaults()
     {
-        StatusBanner = $"Router Fxy={RouterSpeedXy} Fz={RouterSpeedZ} depth={RouterDepth}";
+        _settings.Devices.Router.SpeedXy = RouterSpeedXy;
+        _settings.Devices.Router.SpeedZ = RouterSpeedZ;
+        _settings.Devices.Router.Depth = RouterDepth;
+        _settings.Save();
+        StatusBanner = $"Router defaults saved";
     }
 
     [RelayCommand]
     private void SetOriginCorner(string corner)
     {
-        // Places work origin conceptually; sends G10 based on current WPos dimensions of loaded graphic
-        StatusBanner = $"G-Code origin preset: {corner}";
+        if (Document.Segments.Count == 0) { StatusBanner = "no graphic"; return; }
+        PushUndo();
+        double cx = (Document.MinX + Document.MaxX) / 2;
+        double cy = (Document.MinY + Document.MaxY) / 2;
+        double dx = 0, dy = 0;
+        switch (corner)
+        {
+            case "TopLeft": dx = -Document.MinX; dy = -Document.MaxY; break;
+            case "TopCenter": dx = -cx; dy = -Document.MaxY; break;
+            case "TopRight": dx = -Document.MaxX; dy = -Document.MaxY; break;
+            case "MidLeft": dx = -Document.MinX; dy = -cy; break;
+            case "Center": dx = -cx; dy = -cy; break;
+            case "MidRight": dx = -Document.MaxX; dy = -cy; break;
+            case "BotLeft": dx = -Document.MinX; dy = -Document.MinY; break;
+            case "BotCenter": dx = -cx; dy = -Document.MinY; break;
+            case "BotRight": dx = -Document.MaxX; dy = -Document.MinY; break;
+        }
+        GCodeTransformService.Translate(Document, dx, dy);
+        AfterTransform();
+        StatusBanner = $"G-Code origin: {corner}";
+    }
+
+    [RelayCommand]
+    private void SelectCoord(string code)
+    {
+        CoordSystem = code;
+        _serial.SendLine(code);
     }
 
     private void OnLog(string line)
@@ -306,7 +625,7 @@ public partial class MainViewModel : ObservableObject
         Application.Current.Dispatcher.Invoke(() =>
         {
             LogLines.Add(line);
-            while (LogLines.Count > 500) LogLines.RemoveAt(0);
+            while (LogLines.Count > 800) LogLines.RemoveAt(0);
         });
     }
 
@@ -321,9 +640,22 @@ public partial class MainViewModel : ObservableObject
             MachineX = $"{s.Machine.X:00000.000}";
             MachineY = $"{s.Machine.Y:00000.000}";
             MachineZ = $"{s.Machine.Z:00000.000}";
+            CurrentWorkPos.X = s.Work.X;
+            CurrentWorkPos.Y = s.Work.Y;
+            CurrentWorkPos.Z = s.Work.Z;
             OvFeed = s.OvFeed;
             OvRapid = s.OvRapid;
             OvSpindle = s.OvSpindle;
+            FeedRate = s.Feed;
+            SpindleRate = s.Spindle;
         });
     }
+}
+
+public sealed class CustomButtonItem
+{
+    public string Label { get; set; }
+    public string Code { get; set; }
+    public CustomButtonItem() { Label = ""; Code = ""; }
+    public CustomButtonItem(string label, string code) { Label = label; Code = code; }
 }

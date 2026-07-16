@@ -1,0 +1,154 @@
+<Window x:Class="GrblPlotter.Wpf.Views.SetupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:conv="clr-namespace:GrblPlotter.Wpf.Converters"
+        Title="Setup"
+        Height="560" Width="520"
+        Icon="/Assets/Icon.ico"
+        WindowStartupLocation="CenterOwner">
+  <Window.Resources>
+    <conv:HexToBrushConverter x:Key="HexToBrush"/>
+  </Window.Resources>
+  <DockPanel Margin="8">
+    <TextBlock DockPanel.Dock="Top" Text="Setup" Style="{StaticResource PanelHeader}" FontSize="16" Margin="4,0,0,8"/>
+
+    <Border DockPanel.Dock="Bottom" Style="{StaticResource PanelBorder}">
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+          <Button Content="Reset defaults" Command="{Binding ResetDefaultsCommand}" Style="{StaticResource GhostButton}"/>
+          <Button Content="Reload" Command="{Binding ReloadFromDiskCommand}" Style="{StaticResource GhostButton}"/>
+          <Button Content="Save" Command="{Binding SaveCommand}"/>
+          <Button Content="Close" Click="Close_Click" Style="{StaticResource GhostButton}"/>
+        </StackPanel>
+        <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+      </DockPanel>
+    </Border>
+
+    <TabControl Margin="0,0,0,8">
+      <!-- Connection defaults -->
+      <TabItem Header="Connection">
+        <StackPanel Margin="8">
+          <Grid Margin="0,4">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+            <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+            <TextBlock Text="Last port" VerticalAlignment="Center"/>
+            <TextBox Grid.Column="1" Text="{Binding Settings.Connection.LastPort}"/>
+            <TextBlock Grid.Row="1" Text="Last baud rate" VerticalAlignment="Center"/>
+            <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding BaudRates}" Text="{Binding Settings.Connection.LastBaud}" IsEditable="True"/>
+            <TextBlock Grid.Row="2" Text="Poll interval (ms)" VerticalAlignment="Center"/>
+            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Settings.Connection.PollIntervalMs}"/>
+            <CheckBox Grid.Row="3" Grid.ColumnSpan="2" Content="Auto-connect on startup" IsChecked="{Binding Settings.Connection.AutoConnectOnStartup}"/>
+            <CheckBox Grid.Row="4" Grid.ColumnSpan="2" Content="Send soft-reset ($X clear) right after connect" IsChecked="{Binding Settings.Connection.SendSoftResetOnConnect}"/>
+          </Grid>
+        </StackPanel>
+      </TabItem>
+
+      <!-- Streaming -->
+      <TabItem Header="Streaming">
+        <StackPanel Margin="8">
+          <Grid Margin="0,4">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+            <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+            <TextBlock Text="Planner buffer slots" VerticalAlignment="Center"/>
+            <TextBox Grid.Column="1" Text="{Binding Settings.Streaming.PlannerBufferSlots}"/>
+            <TextBlock Grid.Row="1" Text="Send pump interval (ms)" VerticalAlignment="Center"/>
+            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Settings.Streaming.SendIntervalMs}"/>
+            <CheckBox Grid.Row="2" Grid.ColumnSpan="2" Content="Run $C check-mode pass before streaming" IsChecked="{Binding Settings.Streaming.UseCheckModeBeforeRun}"/>
+            <CheckBox Grid.Row="3" Grid.ColumnSpan="2" Content="Pause on tool-change (M6)" IsChecked="{Binding Settings.Streaming.PauseOnToolChangeM6}"/>
+          </Grid>
+        </StackPanel>
+      </TabItem>
+
+      <!-- 2D view colors -->
+      <TabItem Header="2D view">
+        <StackPanel Margin="8">
+          <Grid Margin="0,4">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/><ColumnDefinition Width="28"/></Grid.ColumnDefinitions>
+            <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+
+            <TextBlock Text="Background" VerticalAlignment="Center"/>
+            <TextBox Grid.Column="1" Text="{Binding Settings.Colors.BackgroundColor}"/>
+            <Border Grid.Column="2" Width="18" Height="18" BorderBrush="{StaticResource BorderBrushKey}" BorderThickness="1" Background="{Binding Settings.Colors.BackgroundColor, Converter={StaticResource HexToBrush}}"/>
+
+            <TextBlock Grid.Row="1" Text="Toolpath (cut)" VerticalAlignment="Center"/>
+            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Settings.Colors.ToolpathColor}"/>
+            <Border Grid.Row="1" Grid.Column="2" Width="18" Height="18" BorderBrush="{StaticResource BorderBrushKey}" BorderThickness="1" Background="{Binding Settings.Colors.ToolpathColor, Converter={StaticResource HexToBrush}}"/>
+
+            <TextBlock Grid.Row="2" Text="Rapid moves" VerticalAlignment="Center"/>
+            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Settings.Colors.RapidColor}"/>
+            <Border Grid.Row="2" Grid.Column="2" Width="18" Height="18" BorderBrush="{StaticResource BorderBrushKey}" BorderThickness="1" Background="{Binding Settings.Colors.RapidColor, Converter={StaticResource HexToBrush}}"/>
+
+            <TextBlock Grid.Row="3" Text="Grid" VerticalAlignment="Center"/>
+            <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Settings.Colors.GridColor}"/>
+            <Border Grid.Row="3" Grid.Column="2" Width="18" Height="18" BorderBrush="{StaticResource BorderBrushKey}" BorderThickness="1" Background="{Binding Settings.Colors.GridColor, Converter={StaticResource HexToBrush}}"/>
+
+            <TextBlock Grid.Row="4" Text="Tool position" VerticalAlignment="Center"/>
+            <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding Settings.Colors.ToolPositionColor}"/>
+            <Border Grid.Row="4" Grid.Column="2" Width="18" Height="18" BorderBrush="{StaticResource BorderBrushKey}" BorderThickness="1" Background="{Binding Settings.Colors.ToolPositionColor, Converter={StaticResource HexToBrush}}"/>
+          </Grid>
+          <CheckBox Content="Show grid" IsChecked="{Binding Settings.Colors.ShowGrid}" Margin="0,6,0,0"/>
+          <CheckBox Content="Show rapid moves" IsChecked="{Binding Settings.Colors.ShowRapidMoves}"/>
+        </StackPanel>
+      </TabItem>
+
+      <!-- Device defaults -->
+      <TabItem Header="Devices">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel Margin="8">
+            <TextBlock Text="Active device" Style="{StaticResource PanelHeader}"/>
+            <ComboBox ItemsSource="{Binding DeviceOptions}" SelectedItem="{Binding Settings.Devices.ActiveDevice}" Margin="0,0,0,8"/>
+
+            <TextBlock Text="Laser defaults" Style="{StaticResource PanelHeader}"/>
+            <Grid Margin="0,0,0,8">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="90"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+              <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+              <TextBlock Text="Power" VerticalAlignment="Center"/><TextBox Grid.Column="1" Text="{Binding Settings.Devices.Laser.Power}"/>
+              <TextBlock Grid.Row="1" Text="Speed" VerticalAlignment="Center"/><TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Settings.Devices.Laser.Speed}"/>
+              <TextBlock Grid.Row="2" Text="Passes" VerticalAlignment="Center"/><TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Settings.Devices.Laser.Passes}"/>
+              <CheckBox Grid.Row="3" Grid.ColumnSpan="2" Content="Air assist" IsChecked="{Binding Settings.Devices.Laser.AirAssist}"/>
+            </Grid>
+
+            <TextBlock Text="Plotter defaults" Style="{StaticResource PanelHeader}"/>
+            <Grid Margin="0,0,0,8">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="90"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+              <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+              <TextBlock Text="Z up" VerticalAlignment="Center"/><TextBox Grid.Column="1" Text="{Binding Settings.Devices.Plotter.ZUp}"/>
+              <TextBlock Grid.Row="1" Text="Z down" VerticalAlignment="Center"/><TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Settings.Devices.Plotter.ZDown}"/>
+              <TextBlock Grid.Row="2" Text="Speed" VerticalAlignment="Center"/><TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Settings.Devices.Plotter.Speed}"/>
+            </Grid>
+
+            <TextBlock Text="Router defaults" Style="{StaticResource PanelHeader}"/>
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="90"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+              <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+              <TextBlock Text="Feed XY" VerticalAlignment="Center"/><TextBox Grid.Column="1" Text="{Binding Settings.Devices.Router.SpeedXy}"/>
+              <TextBlock Grid.Row="1" Text="Feed Z" VerticalAlignment="Center"/><TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Settings.Devices.Router.SpeedZ}"/>
+              <TextBlock Grid.Row="2" Text="Depth" VerticalAlignment="Center"/><TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Settings.Devices.Router.Depth}"/>
+            </Grid>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <!-- Hotkeys help -->
+      <TabItem Header="Hotkeys">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel Margin="8">
+            <TextBlock Text="Keyboard shortcuts" Style="{StaticResource PanelHeader}"/>
+            <TextBlock TextWrapping="Wrap" FontFamily="Consolas" FontSize="12">
+              <Run Text="Ctrl+O"/><Run Text="  Open G-Code file" Foreground="{StaticResource TextMutedBrush}"/><LineBreak/>
+              <Run Text="Ctrl+S"/><Run Text="  Save G-Code file" Foreground="{StaticResource TextMutedBrush}"/><LineBreak/>
+              <Run Text="Space"/><Run Text="   Feed hold" Foreground="{StaticResource TextMutedBrush}"/><LineBreak/>
+              <Run Text="Ctrl+R"/><Run Text="  Cycle start / resume" Foreground="{StaticResource TextMutedBrush}"/><LineBreak/>
+              <Run Text="Esc"/><Run Text="     Soft reset (Ctrl-X)" Foreground="{StaticResource TextMutedBrush}"/><LineBreak/>
+              <Run Text="Arrow keys"/><Run Text="  Jog X/Y" Foreground="{StaticResource TextMutedBrush}"/><LineBreak/>
+              <Run Text="PgUp / PgDn"/><Run Text="  Jog Z" Foreground="{StaticResource TextMutedBrush}"/><LineBreak/>
+              <Run Text="F5"/><Run Text="      Start streaming" Foreground="{StaticResource TextMutedBrush}"/><LineBreak/>
+              <Run Text="F6"/><Run Text="      Check-mode run" Foreground="{StaticResource TextMutedBrush}"/><LineBreak/>
+              <Run Text="F7"/><Run Text="      Stop streaming" Foreground="{StaticResource TextMutedBrush}"/><LineBreak/>
+            </TextBlock>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+    </TabControl>
+  </DockPanel>
+</Window>

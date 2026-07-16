@@ -80,4 +80,53 @@ public static class GCodeParser
 
     public static GCodeDocument LoadFile(string path) =>
         Parse(File.ReadAllText(path), path);
+
+    /// <summary>
+    /// Formats a coordinate/number using invariant culture with up to 4 decimals,
+    /// trimming trailing zeros. Shared by the import/transform services so all
+    /// generated G-code uses a consistent numeric style.
+    /// </summary>
+    public static string FormatNumber(double value) =>
+        value.ToString("0.####", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// Rebuilds a minimal, valid G-code text listing (G0/G1 absolute mm moves)
+    /// plus the matching <see cref="GCodeSegment"/> list and bounding box from a
+    /// flat list of segments. Used by import services (after generating geometry)
+    /// and by <c>GCodeTransformService</c> (after mutating segments) to regenerate
+    /// a consistent <see cref="GCodeDocument"/> without hand-rolling text output.
+    /// </summary>
+    public static GCodeDocument BuildFromSegments(IReadOnlyList<GCodeSegment> segments, double feedXY = 1000, string? path = null)
+    {
+        var doc = new GCodeDocument { FilePath = path ?? "" };
+        doc.Lines.Add("G21 (millimeters)");
+        doc.Lines.Add("G90 (absolute)");
+
+        bool havePos = false;
+        double curX = 0, curY = 0;
+        bool first = true;
+        double minX = 0, minY = 0, maxX = 0, maxY = 0;
+
+        foreach (var s in segments)
+        {
+            if (!havePos || Math.Abs(curX - s.X0) > 1e-6 || Math.Abs(curY - s.Y0) > 1e-6)
+            {
+                doc.Lines.Add($"G0 X{FormatNumber(s.X0)} Y{FormatNumber(s.Y0)}");
+            }
+
+            var word = s.Rapid ? "G0" : "G1";
+            var feed = s.Rapid ? "" : $" F{FormatNumber(feedXY)}";
+            doc.Lines.Add($"{word} X{FormatNumber(s.X1)} Y{FormatNumber(s.Y1)}{feed}");
+
+            doc.Segments.Add(new GCodeSegment { Rapid = s.Rapid, X0 = s.X0, Y0 = s.Y0, X1 = s.X1, Y1 = s.Y1 });
+            curX = s.X1; curY = s.Y1; havePos = true;
+
+            if (first) { minX = maxX = Math.Min(s.X0, s.X1); minY = maxY = Math.Min(s.Y0, s.Y1); first = false; }
+            minX = Math.Min(minX, Math.Min(s.X0, s.X1)); maxX = Math.Max(maxX, Math.Max(s.X0, s.X1));
+            minY = Math.Min(minY, Math.Min(s.Y0, s.Y1)); maxY = Math.Max(maxY, Math.Max(s.Y0, s.Y1));
+        }
+
+        doc.MinX = minX; doc.MaxX = maxX; doc.MinY = minY; doc.MaxY = maxY;
+        return doc;
+    }
 }
