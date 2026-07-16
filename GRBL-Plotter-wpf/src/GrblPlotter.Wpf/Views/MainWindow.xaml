@@ -295,7 +295,7 @@
             <Image Source="{Binding PlaceholderImage}" Stretch="Uniform"
                    Visibility="{Binding ShowPlaceholder, Converter={StaticResource BoolToVis}}"/>
             <Viewbox Stretch="Uniform" Margin="12">
-              <Canvas Width="400" Height="300">
+              <Canvas Width="{Binding PreviewWidth}" Height="{Binding PreviewHeight}">
                 <Path Stroke="#FF6FBF8A" StrokeThickness="1.2" Data="{Binding ToolpathGeometry}"/>
                 <Path Stroke="#FF4A90A4" StrokeThickness="0.8" StrokeDashArray="2 2" Data="{Binding RapidGeometry}"/>
                 <Ellipse Width="8" Height="8" Fill="#FFE6C35C" Stroke="#FF1A1F26" StrokeThickness="1"

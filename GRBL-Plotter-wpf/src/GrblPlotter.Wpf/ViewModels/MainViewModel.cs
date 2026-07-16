@@ -83,6 +83,13 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private double _simX;
     [ObservableProperty] private double _simY;
     [ObservableProperty] private Visibility _simMarkerVisibility = Visibility.Collapsed;
+    [ObservableProperty] private double _previewWidth = 400;
+    [ObservableProperty] private double _previewHeight = 300;
+
+    // World → canvas mapping (updated in BuildPreview)
+    private double _mapMinX, _mapMaxY, _mapScale = 1;
+    private const double PreviewPad = 8;
+    private const double PreviewTarget = 400;
 
     [ObservableProperty] private double _transformScale = 1.0;
     [ObservableProperty] private double _transformRotate = 90;
@@ -144,8 +151,9 @@ public partial class MainViewModel : ObservableObject
         {
             Application.Current.Dispatcher.Invoke(() =>
             {
-                SimX = p.X;
-                SimY = -p.Y;
+                // Map machine/world coords into preview canvas pixels
+                SimX = (p.X - _mapMinX) * _mapScale + PreviewPad;
+                SimY = (_mapMaxY - p.Y) * _mapScale + PreviewPad;
                 SimMarkerVisibility = Visibility.Visible;
             });
         };
@@ -358,6 +366,43 @@ public partial class MainViewModel : ObservableObject
 
     private void BuildPreview()
     {
+        if (Document.Segments.Count == 0)
+        {
+            ToolpathGeometry = null;
+            RapidGeometry = null;
+            PreviewWidth = 400;
+            PreviewHeight = 300;
+            _mapScale = 1;
+            _mapMinX = 0;
+            _mapMaxY = 0;
+            return;
+        }
+
+        double minX = Document.MinX, maxX = Document.MaxX;
+        double minY = Document.MinY, maxY = Document.MaxY;
+        // Also scan segments in case bounds were stale
+        foreach (var s in Document.Segments)
+        {
+            minX = Math.Min(minX, Math.Min(s.X0, s.X1));
+            maxX = Math.Max(maxX, Math.Max(s.X0, s.X1));
+            minY = Math.Min(minY, Math.Min(s.Y0, s.Y1));
+            maxY = Math.Max(maxY, Math.Max(s.Y0, s.Y1));
+        }
+
+        double spanX = Math.Max(maxX - minX, 1e-6);
+        double spanY = Math.Max(maxY - minY, 1e-6);
+        // Fit bbox into a ~PreviewTarget box (CNC: Y up → screen Y down via maxY - y)
+        double scale = PreviewTarget / Math.Max(spanX, spanY);
+        _mapScale = scale;
+        _mapMinX = minX;
+        _mapMaxY = maxY;
+
+        PreviewWidth = spanX * scale + PreviewPad * 2;
+        PreviewHeight = spanY * scale + PreviewPad * 2;
+
+        Point Map(double x, double y) =>
+            new((x - minX) * scale + PreviewPad, (maxY - y) * scale + PreviewPad);
+
         var cut = new StreamGeometry();
         var rapid = new StreamGeometry();
         using (var c = cut.Open())
@@ -366,8 +411,10 @@ public partial class MainViewModel : ObservableObject
             foreach (var s in Document.Segments)
             {
                 var g = s.Rapid ? r : c;
-                g.BeginFigure(new Point(s.X0, -s.Y0), false, false);
-                g.LineTo(new Point(s.X1, -s.Y1), true, false);
+                var p0 = Map(s.X0, s.Y0);
+                var p1 = Map(s.X1, s.Y1);
+                g.BeginFigure(p0, false, false);
+                g.LineTo(p1, true, false);
             }
         }
         cut.Freeze();
