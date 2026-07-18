@@ -1,12 +1,12 @@
 <Window x:Class="GrblPlotter.Wpf.Views.ProbingWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Probing"
+        Title="{DynamicResource Str.ProbingTitle}"
         Height="600" Width="420"
         Icon="/Assets/Icon.ico"
         WindowStartupLocation="CenterOwner">
   <DockPanel Margin="8">
-    <TextBlock DockPanel.Dock="Top" Text="Edge / Center / XYZ Probing" Style="{StaticResource PanelHeader}" FontSize="15" Margin="4,0,0,8"/>
+    <TextBlock DockPanel.Dock="Top" Text="{DynamicResource Str.ProbingHeader}" Style="{StaticResource PanelHeader}" FontSize="15" Margin="4,0,0,8"/>
 
     <Border DockPanel.Dock="Bottom" Style="{StaticResource PanelBorder}">
       <StackPanel>

@@ -39,6 +39,8 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _statusBanner = "nothing loaded";
     [ObservableProperty] private string _windowTitle = "GRBL Plotter WPF Ver.:1.8.0.2 | grbl: not connected";
 
+    private static string L(string key, string fallback) => LocalizationService.Get(key, fallback);
+
     [ObservableProperty] private string _workX = "00000.000";
     [ObservableProperty] private string _workY = "00000.000";
     [ObservableProperty] private string _workZ = "00000.000";
@@ -172,8 +174,12 @@ public partial class MainViewModel : ObservableObject
             Application.Current.Dispatcher.Invoke(() =>
             {
                 IsConnected = c;
-                ConnectionText = c ? $"connected {_serial.PortName}" : "not connected";
+                ConnectionText = c
+                    ? $"{L("Str.Connected", "connected")} {_serial.PortName}"
+                    : L("Str.NotConnected", "not connected");
                 RefreshTitle();
+                if (!c && !IsSimulating)
+                    SimMarkerVisibility = Visibility.Collapsed;
             });
         };
         _streamer.ProgressChanged += () =>
@@ -181,7 +187,7 @@ public partial class MainViewModel : ObservableObject
             Application.Current.Dispatcher.Invoke(() =>
             {
                 StreamProgress = _streamer.Progress;
-                StreamInfo = $"Prog {_streamer.Progress:0}%  Line {_streamer.CurrentLine}/{_streamer.TotalLines}";
+                StreamInfo = $"{L("Str.Prog", "Prog")} {_streamer.Progress:0}%  {L("Str.Line", "Line")} {_streamer.CurrentLine}/{_streamer.TotalLines}";
                 IsStreaming = _streamer.IsRunning;
             });
         };
@@ -189,7 +195,7 @@ public partial class MainViewModel : ObservableObject
         {
             Application.Current.Dispatcher.Invoke(() =>
             {
-                StatusBanner = "streaming complete";
+                StatusBanner = L("Str.StreamingComplete", "streaming complete");
                 IsStreaming = false;
             });
         };
@@ -217,10 +223,17 @@ public partial class MainViewModel : ObservableObject
             Application.Current.Dispatcher.Invoke(() =>
             {
                 IsSimulating = false;
-                StatusBanner = "simulation complete";
+                StatusBanner = L("Str.SimulationComplete", "simulation complete");
                 SimMarkerVisibility = Visibility.Collapsed;
             });
         };
+
+        ConnectionText = L("Str.NotConnected", "not connected");
+        MachineStateText = L("Str.Unknown", "unknown");
+        StatusBanner = L("Str.NothingLoaded", "nothing loaded");
+        FileLabel = L("Str.NothingLoaded", "nothing loaded");
+        StreamInfo = $"{L("Str.Prog", "Prog")} 0%  {L("Str.Time", "Time")} —";
+        RefreshTitle();
 
         try
         {
@@ -284,7 +297,7 @@ public partial class MainViewModel : ObservableObject
         DimensionText = doc.Segments.Count == 0
             ? "—"
             : $"X:{doc.MinX:0.###}…{doc.MaxX:0.###}  Y:{doc.MinY:0.###}…{doc.MaxY:0.###}";
-        StatusBanner = $"loaded {doc.FileName}  ({doc.Lines.Count} lines, {doc.Segments.Count} segs)";
+        StatusBanner = $"{L("Str.Loaded", "loaded")} {doc.FileName}  ({doc.Lines.Count} {L("Str.Lines", "lines")}, {doc.Segments.Count} {L("Str.Segs", "segs")})";
     }
 
     public void ApplyGeneratedGCode(string gcode, string name = "generated")
@@ -304,7 +317,7 @@ public partial class MainViewModel : ObservableObject
         if (Ports.Count > 0 && (string.IsNullOrEmpty(SelectedPort) || !Ports.Contains(SelectedPort)))
             SelectedPort = Ports[0];
         if (Ports.Count == 0)
-            StatusBanner = "no serial ports found";
+            StatusBanner = L("Str.NoPorts", "no serial ports found");
     }
 
     [RelayCommand]
@@ -317,7 +330,7 @@ public partial class MainViewModel : ObservableObject
             {
                 if (string.IsNullOrEmpty(SelectedPort))
                 {
-                    StatusBanner = "select a COM port";
+                    StatusBanner = L("Str.SelectPort", "select a COM port");
                     return;
                 }
                 _serial.Connect(SelectedPort, SelectedBaud);
@@ -328,7 +341,7 @@ public partial class MainViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusBanner = $"COM Port {SelectedPort} failed: {ex.Message}";
+            StatusBanner = $"COM Port {SelectedPort} {L("Str.ComFailed", "failed")}: {ex.Message}";
             OnLog($"[ERROR] {ex.Message}");
         }
     }
@@ -382,7 +395,7 @@ public partial class MainViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusBanner = $"Load failed: {ex.Message}";
+            StatusBanner = $"{L("Str.LoadFailed", "Load failed")}: {ex.Message}";
             OnLog($"[ERROR] {ex.Message}");
         }
     }
@@ -413,7 +426,7 @@ public partial class MainViewModel : ObservableObject
         if (!string.IsNullOrEmpty(path) && File.Exists(path))
             LoadPath(path);
         else
-            StatusBanner = "recent file missing";
+            StatusBanner = L("Str.RecentMissing", "recent file missing");
     }
 
     [RelayCommand]
@@ -445,7 +458,7 @@ public partial class MainViewModel : ObservableObject
             LoadPath(url);
             return;
         }
-        StatusBanner = "paste a file path or http(s) URL";
+        StatusBanner = L("Str.PastePathHint", "paste a file path or http(s) URL");
     }
 
     partial void OnShowRapidMovesChanged(bool value)
@@ -495,9 +508,9 @@ public partial class MainViewModel : ObservableObject
         ApplyCanvasModeFlags();
         StatusBanner = mode switch
         {
-            "JogFigure" => "mode: jog to figure position",
-            "JogClick" => "mode: jog to clicked position",
-            _ => "mode: edit figure"
+            "JogFigure" => L("Str.StatusModeJogFigure", "mode: jog to figure position"),
+            "JogClick" => L("Str.StatusModeJogClick", "mode: jog to clicked position"),
+            _ => L("Str.ModeEditBanner", "mode: edit figure")
         };
     }
 
@@ -530,7 +543,7 @@ public partial class MainViewModel : ObservableObject
             StatusBanner = $"selected path ({_selectedIndices.Count} segs)";
         }
         else
-            StatusBanner = "no path hit";
+            StatusBanner = L("Str.NoPathHit", "no path hit");
         RebuildSelectionGeometry();
     }
 
@@ -604,7 +617,7 @@ public partial class MainViewModel : ObservableObject
         File.WriteAllText(dlg.FileName, GcodeText);
         Document.FilePath = dlg.FileName;
         FileLabel = Document.FileName;
-        StatusBanner = $"saved {Document.FileName}";
+        StatusBanner = $"{L("Str.Saved", "saved")} {Document.FileName}";
     }
 
     [RelayCommand]
@@ -723,6 +736,8 @@ public partial class MainViewModel : ObservableObject
             MarkerCanvasY = (_mapMaxY - _markerWorldY) * _mapScale + PreviewPad;
             MarkerVisibility = Visibility.Visible;
         }
+        if (!IsSimulating && IsConnected)
+            UpdateLiveToolMarker(CurrentWorkPos.X, CurrentWorkPos.Y);
         RebuildOverlays();
     }
 
@@ -922,7 +937,10 @@ public partial class MainViewModel : ObservableObject
         var sliced = string.Join(Environment.NewLine, all.Skip(line - 1));
         var tmp = GCodeParser.Parse(sliced, Document.FilePath);
         _streamer.Load(tmp);
+        ShowPlaceholder = false;
         _streamer.Start(false);
+        if (!IsSimulating)
+            UpdateLiveToolMarker(CurrentWorkPos.X, CurrentWorkPos.Y);
         StatusBanner = $"streaming from line {line}…";
     }
 
@@ -954,7 +972,17 @@ public partial class MainViewModel : ObservableObject
         return accepted && int.TryParse(box.Text, out value);
     }
 
-    [RelayCommand] private void StreamStart() { ApplyEditor(); _streamer.Start(false); StatusBanner = "streaming…"; }
+    [RelayCommand]
+    private void StreamStart()
+    {
+        ApplyEditor();
+        ShowPlaceholder = Document.Segments.Count == 0;
+        _streamer.Start(false);
+        // Show tool tip immediately from last known work position (status polls continue to update).
+        if (!IsSimulating)
+            UpdateLiveToolMarker(CurrentWorkPos.X, CurrentWorkPos.Y);
+        StatusBanner = "streaming…";
+    }
     [RelayCommand] private void StreamCheck() { ApplyEditor(); _streamer.Start(true); StatusBanner = "check mode…"; }
     [RelayCommand] private void StreamPause() => _streamer.Pause();
     [RelayCommand] private void StreamResume() => _streamer.Resume();
@@ -1521,7 +1549,23 @@ public partial class MainViewModel : ObservableObject
             OvSpindle = s.OvSpindle;
             FeedRate = s.Feed;
             SpindleRate = s.Spindle;
+            // Run/jog: drive the same preview marker Simulation uses (was sim-only before).
+            if (!IsSimulating)
+                UpdateLiveToolMarker(s.Work.X, s.Work.Y);
         });
+    }
+
+    /// <summary>Map work coordinates onto the 2D preview tool tip (visible during Run &amp; idle while connected).</summary>
+    private void UpdateLiveToolMarker(double workX, double workY)
+    {
+        if (!IsConnected || Document.Segments.Count == 0 || _mapScale <= 1e-12)
+        {
+            if (!IsSimulating) SimMarkerVisibility = Visibility.Collapsed;
+            return;
+        }
+        SimX = (workX - _mapMinX) * _mapScale + PreviewPad;
+        SimY = (_mapMaxY - workY) * _mapScale + PreviewPad;
+        SimMarkerVisibility = Visibility.Visible;
     }
 }
 

@@ -83,7 +83,10 @@ public partial class MainWindow : Window
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.Z) { Vm.UndoCommand.Execute(null); e.Handled = true; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.R) { Vm.SoftResetCommand.Execute(null); e.Handled = true; }
         if (e.Key == Key.Escape) { Vm.JogCancelCommand.Execute(null); e.Handled = true; }
-        if (e.Key == Key.Space && Keyboard.Modifiers == ModifierKeys.None)
+        // Space activates focused buttons — don't also FeedHold or Start+Hold race.
+        if (e.Key == Key.Space && Keyboard.Modifiers == ModifierKeys.None
+            && Keyboard.FocusedElement is not System.Windows.Controls.Button
+            && Keyboard.FocusedElement is not System.Windows.Controls.Primitives.ButtonBase)
         {
             Vm.FeedHoldCommand.Execute(null);
             e.Handled = true;

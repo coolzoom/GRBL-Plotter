@@ -8,6 +8,19 @@ public static class LocalizationService
 {
     public static string Current { get; private set; } = "en";
 
+    /// <summary>Lookup a <c>Str.*</c> resource; returns <paramref name="fallback"/> if missing.</summary>
+    public static string Get(string key, string? fallback = null)
+    {
+        try
+        {
+            var obj = Application.Current?.TryFindResource(key);
+            if (obj is string s && !string.IsNullOrEmpty(s))
+                return s;
+        }
+        catch { /* ignore */ }
+        return fallback ?? key;
+    }
+
     public static void Apply(string culture)
     {
         var c = (culture ?? "en").Trim().ToLowerInvariant();
