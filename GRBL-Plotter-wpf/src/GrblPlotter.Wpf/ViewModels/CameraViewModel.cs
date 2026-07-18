@@ -1,41 +1,72 @@
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GrblPlotter.Wpf.Models;
+using GrblPlotter.Wpf.Services;
 using Microsoft.Win32;
 
 namespace GrblPlotter.Wpf.ViewModels;
 
-/// <summary>Camera tool stub: no live webcam dependency (no OpenCvSharp), but supports loading a still
-/// reference frame, a crosshair overlay (drawn in XAML), teaching X/Y offsets and jogging to them.</summary>
-public partial class CameraViewModel : ObservableObject
+public partial class CameraViewModel : ObservableObject, IDisposable
 {
     private readonly Action<string> _sendLine;
     private readonly Func<AxisPosition>? _getWorkPos;
+    private readonly WebcamService _webcam = new();
 
-    [ObservableProperty] private BitmapImage? _stillImage;
+    [ObservableProperty] private BitmapSource? _stillImage;
     [ObservableProperty] private bool _isRunning;
     [ObservableProperty] private double _offsetX;
     [ObservableProperty] private double _offsetY;
     [ObservableProperty] private double _teachX;
     [ObservableProperty] private double _teachY;
-    [ObservableProperty] private string _statusText = "camera stopped (still-image mode)";
+    [ObservableProperty] private string _statusText = "camera stopped";
     [ObservableProperty] private string? _imagePath;
+    [ObservableProperty] private int _selectedDeviceIndex;
+
+    public ObservableCollection<string> Devices { get; } = new();
 
     public CameraViewModel(Action<string> sendLine, Func<AxisPosition>? getWorkPos = null)
     {
         _sendLine = sendLine;
         _getWorkPos = getWorkPos;
+        _webcam.FrameReady += bmp =>
+        {
+            StillImage = bmp;
+        };
+        RefreshDevices();
     }
 
     [RelayCommand]
-    private void ToggleCamera()
+    private void RefreshDevices()
     {
-        IsRunning = !IsRunning;
-        StatusText = IsRunning
-            ? "camera 'running' - no live feed available in this build, use Load still image"
-            : "camera stopped";
+        Devices.Clear();
+        foreach (var d in WebcamService.ListDevices()) Devices.Add(d);
+        StatusText = Devices.Count == 0 ? "no cameras found — use still image" : $"{Devices.Count} camera(s)";
+    }
+
+    [RelayCommand]
+    private async Task ToggleCamera()
+    {
+        try
+        {
+            if (IsRunning)
+            {
+                await _webcam.StopAsync();
+                IsRunning = false;
+                StatusText = "camera stopped";
+                return;
+            }
+            await _webcam.StartAsync(SelectedDeviceIndex);
+            IsRunning = true;
+            StatusText = "live camera running";
+        }
+        catch (Exception ex)
+        {
+            IsRunning = false;
+            StatusText = "camera error: " + ex.Message;
+        }
     }
 
     [RelayCommand]
@@ -68,6 +99,14 @@ public partial class CameraViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void ApplyOffsetAsG54()
+    {
+        _sendLine("G54");
+        _sendLine(FormattableString.Invariant($"G10 L20 P1 X{OffsetX:0.###} Y{OffsetY:0.###}"));
+        StatusBannerSafe($"G54 offset applied X{OffsetX:0.###} Y{OffsetY:0.###}");
+    }
+
+    [RelayCommand]
     private void SendJogToOffset()
     {
         var x = OffsetX.ToString(CultureInfo.InvariantCulture);
@@ -75,4 +114,8 @@ public partial class CameraViewModel : ObservableObject
         _sendLine($"G90 G0 X{x} Y{y}");
         StatusText = $"jogged to camera offset X{OffsetX:0.000} Y{OffsetY:0.000}";
     }
+
+    private void StatusBannerSafe(string s) => StatusText = s;
+
+    public void Dispose() => _webcam.Dispose();
 }

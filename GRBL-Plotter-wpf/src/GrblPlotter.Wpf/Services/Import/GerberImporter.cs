@@ -31,6 +31,9 @@ public static class GerberImporter
         double unitScale = 1.0; // mm per unit (1.0 for MM, 25.4 for IN)
         int movesFound = 0;
         double curX = 0, curY = 0;
+        var apertures = new Dictionary<int, double>(); // D-code → diameter mm (circle C,aperture)
+        int currentAperture = 10;
+        var adRx = new Regex(@"ADD(\d+)C,([0-9.]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         try
         {
@@ -54,12 +57,28 @@ public static class GerberImporter
                 if (tok.StartsWith("MOMM", StringComparison.OrdinalIgnoreCase)) { unitScale = 1.0; continue; }
                 if (tok.StartsWith("MOIN", StringComparison.OrdinalIgnoreCase)) { unitScale = 25.4; continue; }
 
-                if (tok.StartsWith("AD", StringComparison.OrdinalIgnoreCase)) continue; // aperture define - ignore
-                if (tok.StartsWith("AM", StringComparison.OrdinalIgnoreCase)) continue; // aperture macro - ignore
+                var ad = adRx.Match(tok);
+                if (ad.Success)
+                {
+                    int code = int.Parse(ad.Groups[1].Value, CultureInfo.InvariantCulture);
+                    double dia = double.Parse(ad.Groups[2].Value, CultureInfo.InvariantCulture) * unitScale;
+                    apertures[code] = dia;
+                    writer.Comment($"Aperture D{code} circle Ø{dia:0.###}mm");
+                    continue;
+                }
+                if (tok.StartsWith("AD", StringComparison.OrdinalIgnoreCase)) continue;
+                if (tok.StartsWith("AM", StringComparison.OrdinalIgnoreCase)) continue;
                 if (tok.Equals("M02", StringComparison.OrdinalIgnoreCase) || tok.Equals("M00", StringComparison.OrdinalIgnoreCase)) break;
 
+                // Select aperture D10+ without XY
+                if (Regex.IsMatch(tok, @"^D(\d{2,})$", RegexOptions.IgnoreCase))
+                {
+                    currentAperture = int.Parse(tok[1..], CultureInfo.InvariantCulture);
+                    continue;
+                }
+
                 var m = CoordRx.Match(tok);
-                if (!m.Success) continue; // comments (G04), LP, tool selects (Dxx alone), etc. - ignore gracefully
+                if (!m.Success) continue;
 
                 if (m.Groups["x"].Success) curX = ScaleCoord(m.Groups["x"].Value, decX) * unitScale;
                 if (m.Groups["y"].Success) curY = ScaleCoord(m.Groups["y"].Value, decY) * unitScale;
@@ -76,7 +95,11 @@ public static class GerberImporter
                         movesFound++;
                         break;
                     case "3":
-                        writer.Dot(curX, curY);
+                        // Flash: draw circle approx for current aperture
+                        if (apertures.TryGetValue(currentAperture, out var dia) && dia > 0.01)
+                            DrawCircle(writer, curX, curY, dia / 2);
+                        else
+                            writer.Dot(curX, curY);
                         movesFound++;
                         break;
                 }
@@ -101,5 +124,15 @@ public static class GerberImporter
         if (!long.TryParse(d, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v)) return 0;
         double value = v / Math.Pow(10, decimals);
         return neg ? -value : value;
+    }
+
+    private static void DrawCircle(GCodeWriter writer, double cx, double cy, double r, int steps = 24)
+    {
+        writer.MoveTo(cx + r, cy);
+        for (int i = 1; i <= steps; i++)
+        {
+            double a = i * 2 * Math.PI / steps;
+            writer.LineTo(cx + r * Math.Cos(a), cy + r * Math.Sin(a));
+        }
     }
 }

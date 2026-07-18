@@ -14,5 +14,9 @@ public partial class CameraWindow : Window
     {
         InitializeComponent();
         DataContext = new CameraViewModel(sendLine, getWorkPos);
+        Closed += (_, _) =>
+        {
+            if (DataContext is CameraViewModel vm) vm.Dispose();
+        };
     }
 }

@@ -56,7 +56,7 @@ public class BarcodeCreateWindow : Window
             if (w <= 0) w = 60; if (h <= 0) h = 20; if (p <= 0) p = 0.3;
             var content = text.Text ?? "GRBL";
             var gcode = type.SelectedIndex == 0
-                ? Build1D(content, w, h, p)
+                ? Services.Import.Code128Encoder.ToGCode(content, w, h, p)
                 : BuildMatrix(content, w, p);
             _onGenerated?.Invoke(gcode);
             Close();

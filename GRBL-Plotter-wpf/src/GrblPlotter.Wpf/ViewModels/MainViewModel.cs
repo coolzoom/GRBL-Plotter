@@ -10,6 +10,7 @@ using GrblPlotter.Wpf.Models;
 using GrblPlotter.Wpf.Services;
 using GrblPlotter.Wpf.Services.Import;
 using GrblPlotter.Wpf.Services.Transform;
+// HatchService in Services.Import
 using Microsoft.Win32;
 
 namespace GrblPlotter.Wpf.ViewModels;
@@ -78,6 +79,13 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty] private Geometry? _toolpathGeometry;
     [ObservableProperty] private Geometry? _rapidGeometry;
+    [ObservableProperty] private Geometry? _selectionGeometry;
+    [ObservableProperty] private Geometry? _backgroundGeometry;
+    [ObservableProperty] private Visibility _selectionVisibility = Visibility.Collapsed;
+    [ObservableProperty] private Visibility _backgroundVisibility = Visibility.Collapsed;
+    [ObservableProperty] private Visibility _markerVisibility = Visibility.Collapsed;
+    [ObservableProperty] private double _markerCanvasX;
+    [ObservableProperty] private double _markerCanvasY;
     [ObservableProperty] private ImageSource? _placeholderImage;
     [ObservableProperty] private bool _showPlaceholder = true;
     [ObservableProperty] private double _simX;
@@ -111,9 +119,23 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _modeJogFigure;
     [ObservableProperty] private bool _modeJogClick;
 
+    [ObservableProperty] private bool _useAbsoluteOrigin; // transform pivot at 0,0
+    [ObservableProperty] private double _transformScaleX = 1.0;
+    [ObservableProperty] private double _transformScaleY = 1.0;
+    [ObservableProperty] private double _rotaryDiameter = 50;
+    [ObservableProperty] private double _radiusComp = 0.5;
+    [ObservableProperty] private bool _moveUseG0 = true;
+    [ObservableProperty] private ToolEntry? _selectedTool;
+
     public ObservableCollection<string> RecentFiles { get; } = new();
+    public ObservableCollection<ToolEntry> Tools { get; } = new();
     public GCodeDocument Document { get; private set; } = new();
     public AxisPosition CurrentWorkPos { get; } = new();
+
+    private readonly List<int> _selectedIndices = new();
+    private double _markerWorldX, _markerWorldY;
+    private bool _hasMarker;
+    private List<GCodeSegment>? _backgroundSegments;
 
     public MainViewModel()
     {
@@ -266,6 +288,8 @@ public partial class MainViewModel : ObservableObject
         var doc = GCodeParser.Parse(gcode, name);
         ApplyDocument(doc);
     }
+
+    public void SetStatus(string msg) => StatusBanner = msg;
 
     [RelayCommand]
     private void RefreshPorts()
@@ -461,16 +485,99 @@ public partial class MainViewModel : ObservableObject
         };
     }
 
-    /// <summary>Map a click in preview canvas pixels to world coords and jog/G0 there when in jog modes.</summary>
-    public void CanvasClick(double canvasX, double canvasY)
+    public (double X, double Y) CanvasToWorld(double canvasX, double canvasY)
     {
-        if (CanvasMode is not ("JogFigure" or "JogClick")) return;
-        if (_mapScale <= 0) return;
+        if (_mapScale <= 0) return (0, 0);
         double worldX = (canvasX - PreviewPad) / _mapScale + _mapMinX;
         double worldY = _mapMaxY - (canvasY - PreviewPad) / _mapScale;
-        var cmd = FormattableString.Invariant($"G90 G0 X{worldX:0.###} Y{worldY:0.###}");
-        _serial.SendLine(cmd);
-        StatusBanner = $"move to X{worldX:0.###} Y{worldY:0.###}";
+        return (worldX, worldY);
+    }
+
+    /// <summary>Map a click in preview canvas pixels: edit=select path, jog modes=G0.</summary>
+    public void CanvasClick(double canvasX, double canvasY)
+    {
+        var (worldX, worldY) = CanvasToWorld(canvasX, canvasY);
+        if (CanvasMode is "JogFigure" or "JogClick")
+        {
+            _serial.SendLine(FormattableString.Invariant($"G90 G0 X{worldX:0.###} Y{worldY:0.###}"));
+            StatusBanner = $"move to X{worldX:0.###} Y{worldY:0.###}";
+            return;
+        }
+        // Edit mode: select nearest path
+        double span = Math.Max(Document.MaxX - Document.MinX, Document.MaxY - Document.MinY);
+        double tol = Math.Max(span * 0.02, 8.0 / Math.Max(_mapScale, 1e-6));
+        int hit = PathEditService.HitTestSegment(Document, worldX, worldY, tol);
+        _selectedIndices.Clear();
+        if (hit >= 0)
+        {
+            _selectedIndices.AddRange(PathEditService.ExpandToPath(Document, hit));
+            StatusBanner = $"selected path ({_selectedIndices.Count} segs)";
+        }
+        else
+            StatusBanner = "no path hit";
+        RebuildSelectionGeometry();
+    }
+
+    public void CanvasSetMarker(double canvasX, double canvasY)
+    {
+        var (wx, wy) = CanvasToWorld(canvasX, canvasY);
+        _markerWorldX = wx;
+        _markerWorldY = wy;
+        _hasMarker = true;
+        MarkerCanvasX = canvasX;
+        MarkerCanvasY = canvasY;
+        MarkerVisibility = Visibility.Visible;
+        StatusBanner = $"marker X{wx:0.###} Y{wy:0.###}";
+    }
+
+    private void RebuildSelectionGeometry()
+    {
+        if (_selectedIndices.Count == 0 || _mapScale <= 0)
+        {
+            SelectionGeometry = null;
+            SelectionVisibility = Visibility.Collapsed;
+            return;
+        }
+        Point Map(double x, double y) =>
+            new((x - _mapMinX) * _mapScale + PreviewPad, (_mapMaxY - y) * _mapScale + PreviewPad);
+        var g = new StreamGeometry();
+        using (var ctx = g.Open())
+        {
+            foreach (var i in _selectedIndices)
+            {
+                if (i < 0 || i >= Document.Segments.Count) continue;
+                var s = Document.Segments[i];
+                ctx.BeginFigure(Map(s.X0, s.Y0), false, false);
+                ctx.LineTo(Map(s.X1, s.Y1), true, false);
+            }
+        }
+        g.Freeze();
+        SelectionGeometry = g;
+        SelectionVisibility = Visibility.Visible;
+    }
+
+    private void RebuildBackgroundGeometry()
+    {
+        if (_backgroundSegments == null || _backgroundSegments.Count == 0 || _mapScale <= 0)
+        {
+            BackgroundGeometry = null;
+            BackgroundVisibility = Visibility.Collapsed;
+            return;
+        }
+        Point Map(double x, double y) =>
+            new((x - _mapMinX) * _mapScale + PreviewPad, (_mapMaxY - y) * _mapScale + PreviewPad);
+        var g = new StreamGeometry();
+        using (var ctx = g.Open())
+        {
+            foreach (var s in _backgroundSegments)
+            {
+                ctx.BeginFigure(Map(s.X0, s.Y0), false, false);
+                ctx.LineTo(Map(s.X1, s.Y1), true, false);
+            }
+        }
+        g.Freeze();
+        BackgroundGeometry = g;
+        BackgroundVisibility = Visibility.Visible;
     }
 
     [RelayCommand]
@@ -583,6 +690,14 @@ public partial class MainViewModel : ObservableObject
         rapid.Freeze();
         ToolpathGeometry = cut;
         RapidGeometry = rapid;
+        RebuildSelectionGeometry();
+        RebuildBackgroundGeometry();
+        if (_hasMarker)
+        {
+            MarkerCanvasX = (_markerWorldX - _mapMinX) * _mapScale + PreviewPad;
+            MarkerCanvasY = (_mapMaxY - _markerWorldY) * _mapScale + PreviewPad;
+            MarkerVisibility = Visibility.Visible;
+        }
     }
 
     private void AfterTransform()
@@ -622,7 +737,7 @@ public partial class MainViewModel : ObservableObject
     {
         if (Document.Segments.Count == 0) return;
         PushUndo();
-        GCodeTransformService.Rotate(Document, TransformRotate, aroundBboxCenter: true);
+        GCodeTransformService.Rotate(Document, TransformRotate, aroundBboxCenter: !UseAbsoluteOrigin);
         AfterTransform();
         StatusBanner = $"rotated {TransformRotate}°";
     }
@@ -632,7 +747,7 @@ public partial class MainViewModel : ObservableObject
     {
         if (Document.Segments.Count == 0) return;
         PushUndo();
-        GCodeTransformService.Scale(Document, TransformScale, aroundBboxCenter: true);
+        GCodeTransformService.Scale(Document, TransformScale, aroundBboxCenter: !UseAbsoluteOrigin);
         AfterTransform();
         StatusBanner = $"scaled ×{TransformScale}";
     }
@@ -1029,6 +1144,324 @@ public partial class MainViewModel : ObservableObject
         CoordSystem = code;
         _serial.SendLine(code);
     }
+
+    private bool HasSelection() => _selectedIndices.Count > 0;
+
+    [RelayCommand]
+    private void PathDeleteSelected()
+    {
+        if (!HasSelection()) { StatusBanner = "no selection"; return; }
+        PushUndo();
+        PathEditService.DeleteIndices(Document, _selectedIndices.ToList());
+        _selectedIndices.Clear();
+        AfterTransform();
+        StatusBanner = "deleted selected path";
+    }
+
+    [RelayCommand]
+    private void PathDuplicateSelected()
+    {
+        if (!HasSelection()) { StatusBanner = "no selection"; return; }
+        PushUndo();
+        PathEditService.DuplicateIndices(Document, _selectedIndices.ToList());
+        AfterTransform();
+        StatusBanner = "duplicated selected path";
+    }
+
+    [RelayCommand]
+    private void PathCropSelected()
+    {
+        if (!HasSelection()) { StatusBanner = "no selection"; return; }
+        PushUndo();
+        PathEditService.CropToIndices(Document, _selectedIndices.ToList());
+        _selectedIndices.Clear();
+        AfterTransform();
+        StatusBanner = "cropped to selection";
+    }
+
+    [RelayCommand]
+    private void PathReverseSelected()
+    {
+        if (!HasSelection()) { StatusBanner = "no selection"; return; }
+        PushUndo();
+        PathEditService.ReverseIndices(Document, _selectedIndices.ToList());
+        AfterTransform();
+        StatusBanner = "reversed selected path";
+    }
+
+    [RelayCommand]
+    private void PathRotateSelected()
+    {
+        if (!HasSelection()) { StatusBanner = "no selection"; return; }
+        PushUndo();
+        PathEditService.RotateIndices(Document, _selectedIndices.ToList(), 90);
+        AfterTransform();
+        StatusBanner = "rotated selected path 90°";
+    }
+
+    [RelayCommand]
+    private void MarkerMoveG0()
+    {
+        if (!_hasMarker) { StatusBanner = "no marker — right-click canvas"; return; }
+        _serial.SendLine(FormattableString.Invariant($"G90 G0 X{_markerWorldX:0.###} Y{_markerWorldY:0.###}"));
+        StatusBanner = "G0 to marker";
+    }
+
+    [RelayCommand]
+    private void MarkerZeroXy()
+    {
+        if (!_hasMarker) { StatusBanner = "no marker — right-click canvas"; return; }
+        _serial.SendLine(FormattableString.Invariant($"G90 G0 X{_markerWorldX:0.###} Y{_markerWorldY:0.###}"));
+        _serial.SendLine("G10 L20 P0 X0 Y0");
+        StatusBanner = "moved to marker + G10 XY zero";
+    }
+
+    [RelayCommand]
+    private void SetGCodeAsBackground()
+    {
+        _backgroundSegments = Document.Segments.Select(s => new GCodeSegment
+        {
+            Rapid = s.Rapid, X0 = s.X0, Y0 = s.Y0, X1 = s.X1, Y1 = s.Y1
+        }).ToList();
+        RebuildBackgroundGeometry();
+        StatusBanner = "G-Code set as background";
+    }
+
+    [RelayCommand]
+    private void ClearBackground()
+    {
+        _backgroundSegments = null;
+        RebuildBackgroundGeometry();
+        StatusBanner = "background cleared";
+    }
+
+    [RelayCommand]
+    private void SendEditorLine(string? lineText)
+    {
+        var line = (lineText ?? "").Split('\n').FirstOrDefault()?.Trim() ?? "";
+        if (line.Length == 0) { StatusBanner = "no line to send"; return; }
+        if (line.StartsWith(';') || line.StartsWith('(')) { StatusBanner = "comment line skipped"; return; }
+        _serial.SendLine(line);
+        StatusBanner = "sent: " + line;
+    }
+
+    [RelayCommand]
+    private void FoldEditorComments()
+    {
+        // Collapse consecutive comment-only lines into a single "; … (N comments)"
+        var lines = GcodeText.Replace("\r\n", "\n").Split('\n').ToList();
+        var outLines = new List<string>();
+        int run = 0;
+        void Flush()
+        {
+            if (run == 1) outLines.Add("; (1 comment)");
+            else if (run > 1) outLines.Add($"; … ({run} comments folded)");
+            run = 0;
+        }
+        foreach (var l in lines)
+        {
+            var t = l.TrimStart();
+            if (t.StartsWith(';') || t.StartsWith('(')) run++;
+            else { Flush(); outLines.Add(l); }
+        }
+        Flush();
+        PushUndo();
+        GcodeText = string.Join(Environment.NewLine, outLines);
+        StatusBanner = "folded comment blocks";
+    }
+
+    [RelayCommand]
+    private void SortEditorByLineLength()
+    {
+        PushUndo();
+        var lines = GcodeText.Replace("\r\n", "\n").Split('\n')
+            .Select((l, i) => (l, i))
+            .OrderBy(x => x.l.Length).ThenBy(x => x.i)
+            .Select(x => x.l);
+        GcodeText = string.Join(Environment.NewLine, lines);
+        StatusBanner = "sorted editor lines by length";
+    }
+
+    // ——— Phase 2: machine panels ———
+
+    private void MoveAbs(double x, double y)
+    {
+        if (MoveUseG0)
+            _serial.SendLine(FormattableString.Invariant($"G90 G0 X{x:0.###} Y{y:0.###}"));
+        else
+            _serial.SendLine(FormattableString.Invariant(
+                $"$J=G90 G21 X{x:0.###} Y{y:0.###} F{JogFeed.ToString(CultureInfo.InvariantCulture)}"));
+    }
+
+    [RelayCommand]
+    private void MoveToGraphicCorner(string corner)
+    {
+        if (Document.Segments.Count == 0) { StatusBanner = "no graphic"; return; }
+        double minX = Document.MinX, maxX = Document.MaxX, minY = Document.MinY, maxY = Document.MaxY;
+        double cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+        double x = cx, y = cy;
+        switch (corner)
+        {
+            case "TL": x = minX; y = maxY; break;
+            case "TC": x = cx; y = maxY; break;
+            case "TR": x = maxX; y = maxY; break;
+            case "ML": x = minX; y = cy; break;
+            case "C": x = cx; y = cy; break;
+            case "MR": x = maxX; y = cy; break;
+            case "BL": x = minX; y = minY; break;
+            case "BC": x = cx; y = minY; break;
+            case "BR": x = maxX; y = minY; break;
+        }
+        MoveAbs(x, y);
+        StatusBanner = $"move to graphic {corner}";
+    }
+
+    [RelayCommand]
+    private void FrameGraphic()
+    {
+        if (Document.Segments.Count == 0) { StatusBanner = "no graphic"; return; }
+        double minX = Document.MinX, maxX = Document.MaxX, minY = Document.MinY, maxY = Document.MaxY;
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("; framing");
+        sb.AppendLine(FormattableString.Invariant($"G90 G0 X{minX:0.###} Y{minY:0.###}"));
+        sb.AppendLine(FormattableString.Invariant($"G1 X{maxX:0.###} Y{minY:0.###} F{JogFeed:0}"));
+        sb.AppendLine(FormattableString.Invariant($"G1 X{maxX:0.###} Y{maxY:0.###}"));
+        sb.AppendLine(FormattableString.Invariant($"G1 X{minX:0.###} Y{maxY:0.###}"));
+        sb.AppendLine(FormattableString.Invariant($"G1 X{minX:0.###} Y{minY:0.###}"));
+        foreach (var line in sb.ToString().Split('\n'))
+        {
+            var t = line.Trim();
+            if (t.Length > 0 && !t.StartsWith(';')) _serial.SendLine(t);
+        }
+        StatusBanner = "framing graphic";
+    }
+
+    [RelayCommand]
+    private void MoveAxisToZero(string axis)
+    {
+        axis = (axis ?? "XY").ToUpperInvariant();
+        if (MoveUseG0)
+        {
+            if (axis == "XY") _serial.SendLine("G90 G0 X0 Y0");
+            else _serial.SendLine($"G90 G0 {axis}0");
+        }
+        else
+        {
+            if (axis == "XY")
+                _serial.SendLine($"$J=G90 G21 X0 Y0 F{JogFeed.ToString(CultureInfo.InvariantCulture)}");
+            else
+                _serial.SendLine($"$J=G90 G21 {axis}0 F{JogFeed.ToString(CultureInfo.InvariantCulture)}");
+        }
+        StatusBanner = $"move {axis} to zero";
+    }
+
+    [RelayCommand] private void DigitalOutOn(string n) => _serial.SendLine($"M64 P{n}");
+    [RelayCommand] private void DigitalOutOff(string n) => _serial.SendLine($"M65 P{n}");
+
+    [RelayCommand]
+    private void PenUp() => _serial.SendLine(FormattableString.Invariant($"G90 G0 Z{PlotterZUp:0.###}"));
+    [RelayCommand]
+    private void PenDown() => _serial.SendLine(FormattableString.Invariant($"G90 G1 Z{PlotterZDown:0.###} F{PlotterSpeed:0}"));
+    [RelayCommand]
+    private void PenZero() => _serial.SendLine("G10 L20 P0 Z0");
+    [RelayCommand]
+    private void PenDot()
+    {
+        PenDown();
+        _serial.SendLine("G4 P0.1");
+        PenUp();
+    }
+
+    [RelayCommand]
+    private void LoadToolList()
+    {
+        var dlg = new OpenFileDialog { Filter = "Tool CSV|*.csv;*.txt|All|*.*" };
+        if (dlg.ShowDialog() != true) return;
+        try
+        {
+            Tools.Clear();
+            foreach (var t in ToolListService.LoadCsv(dlg.FileName)) Tools.Add(t);
+            StatusBanner = $"loaded {Tools.Count} tools";
+        }
+        catch (Exception ex) { StatusBanner = "tool load failed: " + ex.Message; }
+    }
+
+    [RelayCommand]
+    private void SaveToolList()
+    {
+        var dlg = new SaveFileDialog { Filter = "Tool CSV|*.csv", FileName = "tools.csv" };
+        if (dlg.ShowDialog() != true) return;
+        ToolListService.SaveCsv(dlg.FileName, Tools);
+        StatusBanner = "tools saved";
+    }
+
+    [RelayCommand]
+    private void GroupToolsByColor()
+    {
+        var sorted = ToolListService.GroupByColor(Tools);
+        Tools.Clear();
+        foreach (var t in sorted) Tools.Add(t);
+        StatusBanner = "tools grouped by color";
+    }
+
+    [RelayCommand]
+    private void ApplySelectedTool()
+    {
+        if (SelectedTool == null) { StatusBanner = "select a tool"; return; }
+        _serial.SendLine($"T{SelectedTool.Number}");
+        _serial.SendLine("M6");
+        StatusBanner = $"tool {SelectedTool.Number} {SelectedTool.Name}";
+    }
+
+    // ——— Phase 3: deeper transforms ———
+
+    [RelayCommand]
+    private void TransformScaleXyIndep()
+    {
+        if (Document.Segments.Count == 0) return;
+        PushUndo();
+        GCodeTransformService.Scale(Document, TransformScaleX, TransformScaleY, aroundBboxCenter: !UseAbsoluteOrigin);
+        AfterTransform();
+        StatusBanner = $"scaled X×{TransformScaleX} Y×{TransformScaleY}";
+    }
+
+    [RelayCommand]
+    private void TransformScaleToRotary()
+    {
+        if (Document.Segments.Count == 0) return;
+        PushUndo();
+        GCodeTransformService.ScaleAxisToRotaryDegrees(Document, RotaryDiameter, useX: true);
+        AfterTransform();
+        StatusBanner = $"scaled X to rotary ° (Ø{RotaryDiameter})";
+    }
+
+    [RelayCommand]
+    private void TransformRadiusComp()
+    {
+        if (Document.Segments.Count == 0) return;
+        PushUndo();
+        GCodeTransformService.SimpleRadiusOffset(Document, RadiusComp);
+        AfterTransform();
+        StatusBanner = $"radius offset {RadiusComp}";
+    }
+
+    [RelayCommand]
+    private void ApplyHatch()
+    {
+        if (Document.Segments.Count == 0) { StatusBanner = "no graphic for hatch"; return; }
+        PushUndo();
+        Document = HatchService.HatchDocument(Document, spacing: 1.0, angleDeg: 45);
+        GcodeText = string.Join(Environment.NewLine, Document.Lines);
+        _streamer.Load(Document);
+        _simulator.Load(Document);
+        BuildPreview();
+        ShowPlaceholder = false;
+        StatusBanner = "hatch fill added";
+    }
+
+    // override rotate/scale/mirror to honor UseAbsoluteOrigin
+    partial void OnUseAbsoluteOriginChanged(bool value) =>
+        StatusBanner = value ? "transform pivot: origin 0;0" : "transform pivot: bbox center";
 
     private void OnLog(string line)
     {

@@ -6,6 +6,7 @@
   <Application.Resources>
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Themes/Strings.en.xaml"/>
         <ResourceDictionary Source="Themes/IndustrialTheme.xaml"/>
       </ResourceDictionary.MergedDictionaries>
       <conv:BoolToVisibilityConverter x:Key="BoolToVis"/>

@@ -25,7 +25,7 @@
       <Border Grid.Column="0" Style="{StaticResource PanelBorder}" Padding="2">
         <Grid Background="{StaticResource BgDeepBrush}">
           <Image Source="{Binding StillImage}" Stretch="Uniform"/>
-          <TextBlock Text="No frame loaded — use 'Load still image'.&#10;(No live webcam feed in this build — no OpenCvSharp dependency.)"
+          <TextBlock Text="No frame — start camera or load still image."
                      Foreground="{StaticResource TextMutedBrush}" TextAlignment="Center" TextWrapping="Wrap"
                      HorizontalAlignment="Center" VerticalAlignment="Center" Margin="20"
                      Visibility="{Binding StillImage, Converter={StaticResource NullToVis}}"/>
@@ -44,7 +44,9 @@
           <Border Style="{StaticResource PanelBorder}">
             <StackPanel>
               <TextBlock Text="Camera" Style="{StaticResource PanelHeader}"/>
-              <Button Content="{Binding IsRunning, Converter={StaticResource ConnLabel}}" Command="{Binding ToggleCameraCommand}"/>
+              <ComboBox ItemsSource="{Binding Devices}" SelectedIndex="{Binding SelectedDeviceIndex}" Margin="0,0,0,4"/>
+              <Button Content="Refresh devices" Command="{Binding RefreshDevicesCommand}" Style="{StaticResource GhostButton}"/>
+              <Button Content="{Binding IsRunning, Converter={StaticResource ConnLabel}}" Command="{Binding ToggleCameraCommand}" Margin="0,4,0,0"/>
               <Button Content="Load still image…" Command="{Binding LoadStillImageCommand}" Style="{StaticResource GhostButton}" Margin="0,4,0,0"/>
             </StackPanel>
           </Border>
@@ -59,6 +61,7 @@
                 <TextBlock Grid.Row="1" Text="Y" VerticalAlignment="Center"/><TextBox Grid.Row="1" Grid.Column="1" Text="{Binding OffsetY}"/>
               </Grid>
               <Button Content="Teach from current WPos" Command="{Binding TeachOffsetCommand}" Margin="0,6,0,0" Style="{StaticResource GhostButton}"/>
+              <Button Content="Apply as G54 (G10)" Command="{Binding ApplyOffsetAsG54Command}" Margin="0,4,0,0" Style="{StaticResource GhostButton}"/>
               <Button Content="Send jog to offset" Command="{Binding SendJogToOffsetCommand}" Margin="0,4,0,0"/>
             </StackPanel>
           </Border>

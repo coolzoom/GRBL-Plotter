@@ -206,6 +206,32 @@ public static class GCodeTransformService
         _ = minY; _ = maxY;
     }
 
+    /// <summary>Maps X (or Y) linear mm onto rotary degrees given cylinder diameter.</summary>
+    public static void ScaleAxisToRotaryDegrees(GCodeDocument doc, double diameterMm, bool useX = true)
+    {
+        if (diameterMm <= 0) return;
+        double circ = Math.PI * diameterMm;
+        double factor = 360.0 / circ;
+        if (useX) Scale(doc, factor, 1, aroundBboxCenter: false);
+        else Scale(doc, 1, factor, aroundBboxCenter: false);
+    }
+
+    /// <summary>Very simple outward/inward offset of each segment along its normal (not a full CAM offset).</summary>
+    public static void SimpleRadiusOffset(GCodeDocument doc, double radius)
+    {
+        foreach (var s in doc.Segments)
+        {
+            if (s.Rapid) continue;
+            double dx = s.X1 - s.X0, dy = s.Y1 - s.Y0;
+            double len = Math.Sqrt(dx * dx + dy * dy);
+            if (len < 1e-9) continue;
+            double nx = -dy / len * radius, ny = dx / len * radius;
+            s.X0 += nx; s.Y0 += ny;
+            s.X1 += nx; s.Y1 += ny;
+        }
+        Rebuild(doc);
+    }
+
     private static void ReplaceFromParsed(GCodeDocument doc, List<string> cleaned)
     {
         var rebuilt = GCodeParser.Parse(string.Join(Environment.NewLine, cleaned), doc.FilePath);

@@ -1,6 +1,10 @@
+using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using GrblPlotter.Wpf.Services;
+using GrblPlotter.Wpf.Services.Import;
 using GrblPlotter.Wpf.ViewModels;
 
 namespace GrblPlotter.Wpf.Views;
@@ -8,6 +12,7 @@ namespace GrblPlotter.Wpf.Views;
 public partial class MainWindow : Window
 {
     private readonly Dictionary<string, Window> _tools = new();
+    private GamePadService? _gamePad;
 
     public MainWindow()
     {
@@ -21,15 +26,33 @@ public partial class MainWindow : Window
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (Keyboard.FocusedElement is TextBox && e.Key is not (Key.Escape or Key.F5 or Key.F6 or Key.F7))
+            return;
+
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.O) { Vm.OpenFileCommand.Execute(null); e.Handled = true; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.S) { Vm.SaveFileCommand.Execute(null); e.Handled = true; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.Z) { Vm.UndoCommand.Execute(null); e.Handled = true; }
+        if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.R) { Vm.SoftResetCommand.Execute(null); e.Handled = true; }
         if (e.Key == Key.Escape) { Vm.JogCancelCommand.Execute(null); e.Handled = true; }
-        if (e.Key == Key.Space && Keyboard.Modifiers == ModifierKeys.None &&
-            !(Keyboard.FocusedElement is TextBox))
+        if (e.Key == Key.Space && Keyboard.Modifiers == ModifierKeys.None)
         {
             Vm.FeedHoldCommand.Execute(null);
             e.Handled = true;
+        }
+        if (e.Key == Key.F5) { Vm.StreamStartCommand.Execute(null); e.Handled = true; }
+        if (e.Key == Key.F6) { Vm.StreamPauseCommand.Execute(null); e.Handled = true; }
+        if (e.Key == Key.F7) { Vm.StreamStopCommand.Execute(null); e.Handled = true; }
+        if (e.Key == Key.PageUp) { Vm.JogCommand.Execute("Z+"); e.Handled = true; }
+        if (e.Key == Key.PageDown) { Vm.JogCommand.Execute("Z-"); e.Handled = true; }
+        if (Keyboard.Modifiers == ModifierKeys.None)
+        {
+            switch (e.Key)
+            {
+                case Key.Left: Vm.JogCommand.Execute("X-"); e.Handled = true; break;
+                case Key.Right: Vm.JogCommand.Execute("X+"); e.Handled = true; break;
+                case Key.Up: Vm.JogCommand.Execute("Y+"); e.Handled = true; break;
+                case Key.Down: Vm.JogCommand.Execute("Y-"); e.Handled = true; break;
+            }
         }
     }
 
@@ -87,10 +110,109 @@ public partial class MainWindow : Window
         ShowTool("wire", () => new WireCutterWindow(g => Vm.ApplyGeneratedGCode(g, "wire.nc")));
 
     private void OpenProjector_Click(object sender, RoutedEventArgs e) =>
-        ShowTool("proj", () => new ProjectorWindow());
+        ShowTool("proj", () =>
+        {
+            var w = new ProjectorWindow(Vm.ToolpathGeometry, Vm.RapidGeometry);
+            return w;
+        });
 
     private void OpenSecondSerial_Click(object sender, RoutedEventArgs e) =>
         ShowTool("serial2", () => new SecondSerialWindow());
+
+    private void OpenTablet_Click(object sender, RoutedEventArgs e) =>
+        ShowTool("tablet", () => new TabletCreateWindow(g => Vm.ApplyGeneratedGCode(g, "tablet.nc")));
+
+    private void OpenHershey_Click(object sender, RoutedEventArgs e)
+    {
+        var input = new Window
+        {
+            Title = "Hershey stroke text", Width = 360, Height = 160,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this
+        };
+        var box = new TextBox { Text = "GRBL", Margin = new Thickness(12) };
+        var ok = new Button { Content = "Generate", Width = 90, Margin = new Thickness(12), IsDefault = true };
+        ok.Click += (_, _) =>
+        {
+            var doc = HersheyStrokeFont.Generate(box.Text ?? "GRBL", heightMm: 12);
+            Vm.ApplyDocument(doc);
+            input.Close();
+        };
+        var sp = new StackPanel();
+        sp.Children.Add(new TextBlock { Text = "Text (A–Z / 0–9):", Margin = new Thickness(12, 12, 12, 0) });
+        sp.Children.Add(box);
+        sp.Children.Add(ok);
+        input.Content = sp;
+        input.ShowDialog();
+    }
+
+    private void LangEn_Click(object sender, RoutedEventArgs e) => LocalizationService.Apply("en");
+    private void LangZh_Click(object sender, RoutedEventArgs e) => LocalizationService.Apply("zh");
+
+    private void GamePadToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem mi) return;
+        if (mi.IsChecked)
+        {
+            _gamePad?.Dispose();
+            _gamePad = new GamePadService(
+                line => Vm.Serial.SendLine(line),
+                () => Vm.FeedHoldCommand.Execute(null),
+                () => Vm.CycleStartCommand.Execute(null),
+                () => Vm.JogStep,
+                () => Vm.JogFeed);
+            _gamePad.StatusChanged += s => Dispatcher.Invoke(() => Vm.SetStatus(s));
+            _gamePad.Start();
+            Vm.SetStatus("GamePad enabled (A=Hold B=Resume stick=jog)");
+        }
+        else
+        {
+            _gamePad?.Dispose();
+            _gamePad = null;
+            Vm.SetStatus("GamePad disabled");
+        }
+    }
+
+    private void ExtensionsMenu_SubmenuOpened(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menu) return;
+        menu.Items.Clear();
+        var dirs = new[]
+        {
+            Path.Combine(AppContext.BaseDirectory, "Extensions"),
+            Path.Combine(AppSettings.SettingsDirectory, "Extensions")
+        };
+        var files = new List<string>();
+        foreach (var d in dirs)
+        {
+            if (!Directory.Exists(d)) continue;
+            files.AddRange(Directory.GetFiles(d, "*.*"));
+        }
+        if (files.Count == 0)
+        {
+            menu.Items.Add(new MenuItem { Header = "(no Extensions folder files)", IsEnabled = false });
+            return;
+        }
+        foreach (var f in files.OrderBy(x => x))
+        {
+            var item = new MenuItem { Header = Path.GetFileName(f), Tag = f };
+            item.Click += (_, _) =>
+            {
+                try
+                {
+                    var ext = Path.GetExtension(f).ToLowerInvariant();
+                    if (ext is ".nc" or ".gcode" or ".svg" or ".dxf" or ".ngc" or ".hpgl" or ".plt")
+                        Vm.LoadPath(f);
+                    else
+                        Process.Start(new ProcessStartInfo(f) { UseShellExecute = true });
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(ex.Message, "Extension");
+                }
+            };
+            menu.Items.Add(item);
+        }
+    }
 
     private void OpenThirdSerial_Click(object sender, RoutedEventArgs e) =>
         ShowTool("serial3", () =>
@@ -143,6 +265,34 @@ public partial class MainWindow : Window
         Vm.CanvasClick(p.X, p.Y);
     }
 
+    private void PreviewCanvas_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Canvas canvas) return;
+        var p = e.GetPosition(canvas);
+        // Right-click also selects under cursor for context actions
+        Vm.CanvasClick(p.X, p.Y);
+        _lastCanvasClick = p;
+    }
+
+    private System.Windows.Point _lastCanvasClick;
+
+    private void SetMarkerHere_Click(object sender, RoutedEventArgs e)
+    {
+        Vm.CanvasSetMarker(_lastCanvasClick.X, _lastCanvasClick.Y);
+    }
+
+    private void SendEditorLine_Click(object sender, RoutedEventArgs e)
+    {
+        if (EditorBox == null) return;
+        int idx = EditorBox.CaretIndex;
+        var text = EditorBox.Text ?? "";
+        int start = text.LastIndexOf('\n', Math.Max(0, idx - 1)) + 1;
+        int end = text.IndexOf('\n', idx);
+        if (end < 0) end = text.Length;
+        var line = text[start..end];
+        Vm.SendEditorLineCommand.Execute(line);
+    }
+
     private void Window_DragOver(object sender, DragEventArgs e)
     {
         e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None;
@@ -157,6 +307,7 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        _gamePad?.Dispose();
         Vm.Settings.JogStep = Vm.JogStep;
         Vm.Settings.JogFeed = Vm.JogFeed;
         Vm.Settings.Save();

@@ -1,0 +1,11 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+  <sys:String x:Key="Str.File">文件(_F)</sys:String>
+  <sys:String x:Key="Str.Open">打开…</sys:String>
+  <sys:String x:Key="Str.Save">保存…</sys:String>
+  <sys:String x:Key="Str.Exit">退出</sys:String>
+  <sys:String x:Key="Str.Streaming">G代码流送</sys:String>
+  <sys:String x:Key="Str.Jog">移动 / 点动</sys:String>
+  <sys:String x:Key="Str.Language">语言</sys:String>
+</ResourceDictionary>
