@@ -95,7 +95,23 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private double _transformRotate = 90;
     [ObservableProperty] private double _transformDx;
     [ObservableProperty] private double _transformDy;
+    [ObservableProperty] private double _transformTargetWidth = 100;
+    [ObservableProperty] private double _transformTargetHeight = 100;
 
+    [ObservableProperty] private bool _addImportedToView;
+    [ObservableProperty] private bool _showRapidMoves = true;
+    [ObservableProperty] private bool _showToolpath = true;
+    [ObservableProperty] private bool _showDimensionOverlay = true;
+    [ObservableProperty] private string _canvasMode = "Edit"; // Edit | JogFigure | JogClick
+    [ObservableProperty] private string _urlPaste = "";
+    [ObservableProperty] private Visibility _rapidVisibility = Visibility.Visible;
+    [ObservableProperty] private Visibility _toolpathVisibility = Visibility.Visible;
+    [ObservableProperty] private Visibility _dimensionVisibility = Visibility.Visible;
+    [ObservableProperty] private bool _modeEdit = true;
+    [ObservableProperty] private bool _modeJogFigure;
+    [ObservableProperty] private bool _modeJogClick;
+
+    public ObservableCollection<string> RecentFiles { get; } = new();
     public GCodeDocument Document { get; private set; } = new();
     public AxisPosition CurrentWorkPos { get; } = new();
 
@@ -116,6 +132,15 @@ public partial class MainViewModel : ObservableObject
         RouterDepth = _settings.Devices.Router.Depth;
         JogStep = _settings.JogStep;
         JogFeed = _settings.JogFeed;
+        AddImportedToView = _settings.AddImportedToView;
+        ShowRapidMoves = _settings.ShowRapidMoves;
+        ShowToolpath = _settings.ShowToolpath;
+        ShowDimensionOverlay = _settings.ShowDimensionOverlay;
+        CanvasMode = string.IsNullOrEmpty(_settings.CanvasMode) ? "Edit" : _settings.CanvasMode;
+        ApplyCanvasModeFlags();
+        ApplyViewVisibilities();
+        foreach (var f in _settings.RecentFiles.Where(File.Exists).Take(12))
+            RecentFiles.Add(f);
 
         _streamer = new GCodeStreamer(_serial);
         _serial.LogReceived += OnLog;
@@ -302,13 +327,150 @@ public partial class MainViewModel : ObservableObject
         try
         {
             var doc = ImportFacade.OpenAny(path);
-            ApplyDocument(doc);
+            if (AddImportedToView && Document.Segments.Count > 0 && doc.Segments.Count > 0)
+            {
+                PushUndo();
+                var merged = new GCodeDocument { FilePath = doc.FilePath };
+                merged.Lines.AddRange(Document.Lines);
+                if (merged.Lines.Count > 0 && !string.IsNullOrWhiteSpace(merged.Lines[^1]))
+                    merged.Lines.Add("");
+                merged.Lines.Add($"; --- append {Path.GetFileName(path)} ---");
+                merged.Lines.AddRange(doc.Lines);
+                merged.Segments.AddRange(Document.Segments);
+                merged.Segments.AddRange(doc.Segments);
+                merged.MinX = Math.Min(Document.MinX, doc.MinX);
+                merged.MaxX = Math.Max(Document.MaxX, doc.MaxX);
+                merged.MinY = Math.Min(Document.MinY, doc.MinY);
+                merged.MaxY = Math.Max(Document.MaxY, doc.MaxY);
+                ApplyDocument(merged, pushUndo: false);
+            }
+            else
+            {
+                ApplyDocument(doc);
+            }
+            RememberRecent(path);
         }
         catch (Exception ex)
         {
             StatusBanner = $"Load failed: {ex.Message}";
             OnLog($"[ERROR] {ex.Message}");
         }
+    }
+
+    private void RememberRecent(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return;
+        RecentFiles.Remove(path);
+        RecentFiles.Insert(0, path);
+        while (RecentFiles.Count > 12) RecentFiles.RemoveAt(RecentFiles.Count - 1);
+        _settings.RecentFiles = RecentFiles.ToList();
+        _settings.Save();
+    }
+
+    [RelayCommand]
+    private void OpenRecent(string? path)
+    {
+        if (!string.IsNullOrEmpty(path) && File.Exists(path))
+            LoadPath(path);
+        else
+            StatusBanner = "recent file missing";
+    }
+
+    [RelayCommand]
+    private void LoadFromUrl()
+    {
+        var url = (UrlPaste ?? "").Trim();
+        if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+                var bytes = http.GetByteArrayAsync(url).GetAwaiter().GetResult();
+                var ext = Path.GetExtension(new Uri(url).AbsolutePath);
+                if (string.IsNullOrEmpty(ext)) ext = ".svg";
+                var tmp = Path.Combine(Path.GetTempPath(), "grbl-url-" + Guid.NewGuid().ToString("N") + ext);
+                File.WriteAllBytes(tmp, bytes);
+                LoadPath(tmp);
+                StatusBanner = $"loaded URL → {Path.GetFileName(tmp)}";
+            }
+            catch (Exception ex)
+            {
+                StatusBanner = $"URL load failed: {ex.Message}";
+            }
+            return;
+        }
+        if (File.Exists(url))
+        {
+            LoadPath(url);
+            return;
+        }
+        StatusBanner = "paste a file path or http(s) URL";
+    }
+
+    partial void OnShowRapidMovesChanged(bool value)
+    {
+        RapidVisibility = value ? Visibility.Visible : Visibility.Collapsed;
+        _settings.ShowRapidMoves = value; _settings.Save();
+    }
+    partial void OnShowToolpathChanged(bool value)
+    {
+        ToolpathVisibility = value ? Visibility.Visible : Visibility.Collapsed;
+        _settings.ShowToolpath = value; _settings.Save();
+    }
+    partial void OnShowDimensionOverlayChanged(bool value)
+    {
+        DimensionVisibility = value ? Visibility.Visible : Visibility.Collapsed;
+        _settings.ShowDimensionOverlay = value; _settings.Save();
+    }
+    partial void OnAddImportedToViewChanged(bool value)
+    {
+        _settings.AddImportedToView = value; _settings.Save();
+    }
+
+    private void ApplyViewVisibilities()
+    {
+        RapidVisibility = ShowRapidMoves ? Visibility.Visible : Visibility.Collapsed;
+        ToolpathVisibility = ShowToolpath ? Visibility.Visible : Visibility.Collapsed;
+        DimensionVisibility = ShowDimensionOverlay ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void ApplyCanvasModeFlags()
+    {
+        ModeEdit = CanvasMode == "Edit";
+        ModeJogFigure = CanvasMode == "JogFigure";
+        ModeJogClick = CanvasMode == "JogClick";
+    }
+
+    partial void OnModeEditChanged(bool value) { if (value) SetCanvasMode("Edit"); }
+    partial void OnModeJogFigureChanged(bool value) { if (value) SetCanvasMode("JogFigure"); }
+    partial void OnModeJogClickChanged(bool value) { if (value) SetCanvasMode("JogClick"); }
+
+    private void SetCanvasMode(string mode)
+    {
+        if (CanvasMode == mode) return;
+        CanvasMode = mode;
+        _settings.CanvasMode = mode;
+        _settings.Save();
+        ApplyCanvasModeFlags();
+        StatusBanner = mode switch
+        {
+            "JogFigure" => "mode: jog to figure position",
+            "JogClick" => "mode: jog to clicked position",
+            _ => "mode: edit figure"
+        };
+    }
+
+    /// <summary>Map a click in preview canvas pixels to world coords and jog/G0 there when in jog modes.</summary>
+    public void CanvasClick(double canvasX, double canvasY)
+    {
+        if (CanvasMode is not ("JogFigure" or "JogClick")) return;
+        if (_mapScale <= 0) return;
+        double worldX = (canvasX - PreviewPad) / _mapScale + _mapMinX;
+        double worldY = _mapMaxY - (canvasY - PreviewPad) / _mapScale;
+        var cmd = FormattableString.Invariant($"G90 G0 X{worldX:0.###} Y{worldY:0.###}");
+        _serial.SendLine(cmd);
+        StatusBanner = $"move to X{worldX:0.###} Y{worldY:0.###}";
     }
 
     [RelayCommand]
@@ -515,6 +677,142 @@ public partial class MainViewModel : ObservableObject
         StatusBanner = "paths reversed";
     }
 
+    [RelayCommand]
+    private void TransformRotate90Cw()
+    {
+        if (Document.Segments.Count == 0) return;
+        PushUndo();
+        GCodeTransformService.Rotate(Document, -90, aroundBboxCenter: true);
+        AfterTransform();
+        StatusBanner = "rotated 90° CW";
+    }
+
+    [RelayCommand]
+    private void TransformRotate90Ccw()
+    {
+        if (Document.Segments.Count == 0) return;
+        PushUndo();
+        GCodeTransformService.Rotate(Document, 90, aroundBboxCenter: true);
+        AfterTransform();
+        StatusBanner = "rotated 90° CCW";
+    }
+
+    [RelayCommand]
+    private void TransformRotate180()
+    {
+        if (Document.Segments.Count == 0) return;
+        PushUndo();
+        GCodeTransformService.Rotate(Document, 180, aroundBboxCenter: true);
+        AfterTransform();
+        StatusBanner = "rotated 180°";
+    }
+
+    [RelayCommand]
+    private void TransformScaleToWidth()
+    {
+        if (Document.Segments.Count == 0) return;
+        PushUndo();
+        GCodeTransformService.ScaleToWidth(Document, TransformTargetWidth);
+        AfterTransform();
+        StatusBanner = $"scaled to width {TransformTargetWidth}";
+    }
+
+    [RelayCommand]
+    private void TransformScaleToHeight()
+    {
+        if (Document.Segments.Count == 0) return;
+        PushUndo();
+        GCodeTransformService.ScaleToHeight(Document, TransformTargetHeight);
+        AfterTransform();
+        StatusBanner = $"scaled to height {TransformTargetHeight}";
+    }
+
+    [RelayCommand]
+    private void TransformRemoveZ()
+    {
+        if (Document.Lines.Count == 0) return;
+        PushUndo();
+        GCodeTransformService.RemoveZMoves(Document);
+        AfterTransform();
+        StatusBanner = "Z moves removed";
+    }
+
+    [RelayCommand]
+    private void TransformArcsToLines()
+    {
+        if (Document.Lines.Count == 0) return;
+        PushUndo();
+        GCodeTransformService.ReplaceArcsWithLines(Document);
+        AfterTransform();
+        StatusBanner = "G2/G3 → G1";
+    }
+
+    [RelayCommand]
+    private void TransformToPolar()
+    {
+        if (Document.Segments.Count == 0) return;
+        PushUndo();
+        GCodeTransformService.ConvertToPolar(Document);
+        AfterTransform();
+        StatusBanner = "converted to polar";
+    }
+
+    [RelayCommand]
+    private void TransformZToSpindle()
+    {
+        if (Document.Lines.Count == 0) return;
+        PushUndo();
+        GCodeTransformService.ConvertZToSpindle(Document);
+        AfterTransform();
+        StatusBanner = "Z → S spindle";
+    }
+
+    [RelayCommand]
+    private void StreamStartFromLine()
+    {
+        ApplyEditor();
+        if (!TryPromptInt("Start streaming at line number (1-based):", "Stream from line", 1, out var line) || line < 1)
+        {
+            StatusBanner = "stream from line cancelled";
+            return;
+        }
+        var all = Document.Lines.ToList();
+        if (line > all.Count) { StatusBanner = "line beyond end"; return; }
+        var sliced = string.Join(Environment.NewLine, all.Skip(line - 1));
+        var tmp = GCodeParser.Parse(sliced, Document.FilePath);
+        _streamer.Load(tmp);
+        _streamer.Start(false);
+        StatusBanner = $"streaming from line {line}…";
+    }
+
+    private static bool TryPromptInt(string message, string title, int defaultValue, out int value)
+    {
+        value = defaultValue;
+        var w = new Window
+        {
+            Title = title,
+            Width = 360,
+            Height = 160,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner = Application.Current.MainWindow,
+            ResizeMode = ResizeMode.NoResize
+        };
+        var box = new System.Windows.Controls.TextBox { Text = defaultValue.ToString(), Margin = new Thickness(12, 8, 12, 8) };
+        var ok = new System.Windows.Controls.Button { Content = "OK", Width = 80, IsDefault = true, Margin = new Thickness(0, 0, 8, 0) };
+        var cancel = new System.Windows.Controls.Button { Content = "Cancel", Width = 80, IsCancel = true };
+        bool accepted = false;
+        ok.Click += (_, _) => { accepted = true; w.DialogResult = true; w.Close(); };
+        var buttons = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(12) };
+        buttons.Children.Add(ok); buttons.Children.Add(cancel);
+        var panel = new System.Windows.Controls.StackPanel();
+        panel.Children.Add(new System.Windows.Controls.TextBlock { Text = message, Margin = new Thickness(12, 12, 12, 0), TextWrapping = TextWrapping.Wrap });
+        panel.Children.Add(box);
+        panel.Children.Add(buttons);
+        w.Content = panel;
+        w.ShowDialog();
+        return accepted && int.TryParse(box.Text, out value);
+    }
+
     [RelayCommand] private void StreamStart() { ApplyEditor(); _streamer.Start(false); StatusBanner = "streaming…"; }
     [RelayCommand] private void StreamCheck() { ApplyEditor(); _streamer.Start(true); StatusBanner = "check mode…"; }
     [RelayCommand] private void StreamPause() => _streamer.Pause();
@@ -542,6 +840,20 @@ public partial class MainViewModel : ObservableObject
         StatusBanner = "simulation stopped";
     }
 
+    [RelayCommand]
+    private void SimFaster()
+    {
+        _simulator.SpeedUnitsPerSecond = Math.Min(400, _simulator.SpeedUnitsPerSecond * 2);
+        StatusBanner = $"sim speed {_simulator.SpeedUnitsPerSecond:0}/s";
+    }
+
+    [RelayCommand]
+    private void SimSlower()
+    {
+        _simulator.SpeedUnitsPerSecond = Math.Max(5, _simulator.SpeedUnitsPerSecond / 2);
+        StatusBanner = $"sim speed {_simulator.SpeedUnitsPerSecond:0}/s";
+    }
+
     [RelayCommand] private void FeedHold() => _serial.FeedHold();
     [RelayCommand] private void CycleStart() => _serial.CycleStart();
     [RelayCommand] private void SoftReset() => _serial.SoftReset();
@@ -555,14 +867,25 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand] private void ZeroXy() => _serial.SendLine("G10 L20 P0 X0 Y0");
     [RelayCommand] private void ZeroXyz() => _serial.SendLine("G10 L20 P0 X0 Y0 Z0");
 
+    /// <summary>Jog axes. Parameter examples: "X+", "Y-", "X+Y+", "X-Y-", "Z+".</summary>
     [RelayCommand]
     private void Jog(string axisDir)
     {
-        if (axisDir.Length < 2) return;
-        var axis = axisDir[0];
-        var sign = axisDir[1] == '-' ? -1 : 1;
-        var d = JogStep * sign;
-        _serial.SendLine($"$J=G91 G21 {axis}{d.ToString(CultureInfo.InvariantCulture)} F{JogFeed.ToString(CultureInfo.InvariantCulture)}");
+        if (string.IsNullOrWhiteSpace(axisDir)) return;
+        var moves = new List<string>();
+        for (int i = 0; i < axisDir.Length - 1; i++)
+        {
+            char a = char.ToUpperInvariant(axisDir[i]);
+            char s = axisDir[i + 1];
+            if ((a is 'X' or 'Y' or 'Z' or 'A' or 'B' or 'C') && (s is '+' or '-'))
+            {
+                var d = JogStep * (s == '-' ? -1 : 1);
+                moves.Add($"{a}{d.ToString(CultureInfo.InvariantCulture)}");
+                i++; // skip sign
+            }
+        }
+        if (moves.Count == 0) return;
+        _serial.SendLine($"$J=G91 G21 {string.Join(" ", moves)} F{JogFeed.ToString(CultureInfo.InvariantCulture)}");
     }
 
     [RelayCommand] private void JogCancel() => _serial.SendRealtime(0x85);
@@ -576,6 +899,46 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand] private void OvSpindlePlus() => _serial.SendRealtime(0x9A);
     [RelayCommand] private void OvSpindleMinus() => _serial.SendRealtime(0x9B);
     [RelayCommand] private void OvSpindleReset() => _serial.SendRealtime(0x99);
+
+    [RelayCommand] private void OvFeedPlusFine() => _serial.SendRealtime(0x93); // +1%
+    [RelayCommand] private void OvFeedMinusFine() => _serial.SendRealtime(0x94); // -1%
+    [RelayCommand] private void OvSpindlePlusFine() => _serial.SendRealtime(0x9C);
+    [RelayCommand] private void OvSpindleMinusFine() => _serial.SendRealtime(0x9D);
+
+    [RelayCommand] private void CoolantMist() => _serial.SendLine("M7");
+    [RelayCommand] private void CoolantFlood() => _serial.SendLine("M8");
+    [RelayCommand] private void CoolantOff() => _serial.SendLine("M9");
+    [RelayCommand] private void SpindleCw() => _serial.SendLine($"M3 S{LaserPower}");
+    [RelayCommand] private void SpindleStop() => _serial.SendLine("M5");
+
+    [RelayCommand]
+    private void ExportSettings()
+    {
+        var dlg = new SaveFileDialog { Filter = "JSON settings|*.json", FileName = "grbl-plotter-wpf-settings.json" };
+        if (dlg.ShowDialog() != true) return;
+        _settings.JogStep = JogStep;
+        _settings.JogFeed = JogFeed;
+        _settings.Save();
+        File.Copy(AppSettings.SettingsPath, dlg.FileName, overwrite: true);
+        StatusBanner = "settings exported";
+    }
+
+    [RelayCommand]
+    private void ImportSettings()
+    {
+        var dlg = new OpenFileDialog { Filter = "JSON settings|*.json|All|*.*" };
+        if (dlg.ShowDialog() != true) return;
+        try
+        {
+            File.Copy(dlg.FileName, AppSettings.SettingsPath, overwrite: true);
+            StatusBanner = "settings imported — restart app to apply fully";
+            MessageBox.Show("Settings imported. Some values apply after restart.", "Import settings");
+        }
+        catch (Exception ex)
+        {
+            StatusBanner = "import failed: " + ex.Message;
+        }
+    }
 
     [RelayCommand]
     private void SendManual(string? cmd)

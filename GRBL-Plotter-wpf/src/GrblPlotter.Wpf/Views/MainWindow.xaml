@@ -12,14 +12,17 @@
     <vm:MainViewModel/>
   </Window.DataContext>
   <DockPanel>
-    <Menu DockPanel.Dock="Top">
+    <Menu DockPanel.Dock="Top" Name="MainMenu">
       <MenuItem Header="_File">
         <MenuItem Header="Open…" Command="{Binding OpenFileCommand}" InputGestureText="Ctrl+O"/>
+        <MenuItem Header="Open Recent" Name="RecentMenu" SubmenuOpened="RecentMenu_SubmenuOpened"/>
         <MenuItem Header="Save…" Command="{Binding SaveFileCommand}" InputGestureText="Ctrl+S"/>
         <MenuItem Header="Clear workspace" Command="{Binding ClearWorkspaceCommand}"/>
         <MenuItem Header="Undo" Command="{Binding UndoCommand}" InputGestureText="Ctrl+Z"/>
         <Separator/>
         <MenuItem Header="Setup…" Click="OpenSetup_Click"/>
+        <MenuItem Header="Export settings…" Command="{Binding ExportSettingsCommand}"/>
+        <MenuItem Header="Import settings…" Command="{Binding ImportSettingsCommand}"/>
         <MenuItem Header="About…" Click="OpenAbout_Click"/>
         <Separator/>
         <MenuItem Header="Exit" Click="Exit_Click"/>
@@ -32,17 +35,30 @@
         <MenuItem Header="Image engraving…" Click="OpenImage_Click"/>
         <MenuItem Header="Barcode…" Click="OpenBarcode_Click"/>
         <MenuItem Header="Wire cutter…" Click="OpenWire_Click"/>
+        <MenuItem Header="Jog path / Frame…" Click="OpenJogPath_Click"/>
       </MenuItem>
       <MenuItem Header="_G-Code Transform">
         <MenuItem Header="Mirror X" Command="{Binding TransformMirrorXCommand}"/>
         <MenuItem Header="Mirror Y" Command="{Binding TransformMirrorYCommand}"/>
-        <MenuItem Header="Rotate" Command="{Binding ApplyRotateTransformCommand}"/>
-        <MenuItem Header="Scale" Command="{Binding ApplyScaleTransformCommand}"/>
+        <Separator/>
+        <MenuItem Header="Rotate 90° CW" Command="{Binding TransformRotate90CwCommand}"/>
+        <MenuItem Header="Rotate 90° CCW" Command="{Binding TransformRotate90CcwCommand}"/>
+        <MenuItem Header="Rotate 180°" Command="{Binding TransformRotate180Command}"/>
+        <MenuItem Header="Rotate (panel °)" Command="{Binding ApplyRotateTransformCommand}"/>
+        <Separator/>
+        <MenuItem Header="Scale (panel factor)" Command="{Binding ApplyScaleTransformCommand}"/>
+        <MenuItem Header="Scale to width" Command="{Binding TransformScaleToWidthCommand}"/>
+        <MenuItem Header="Scale to height" Command="{Binding TransformScaleToHeightCommand}"/>
         <MenuItem Header="Translate" Command="{Binding ApplyTranslateTransformCommand}"/>
         <Separator/>
         <MenuItem Header="Origin → Center" Command="{Binding TransformOriginCenterCommand}"/>
         <MenuItem Header="Origin → Min XY" Command="{Binding TransformOriginMinCommand}"/>
         <MenuItem Header="Reverse paths" Command="{Binding TransformReverseCommand}"/>
+        <Separator/>
+        <MenuItem Header="Replace G2/G3 by lines" Command="{Binding TransformArcsToLinesCommand}"/>
+        <MenuItem Header="Convert to polar" Command="{Binding TransformToPolarCommand}"/>
+        <MenuItem Header="Convert Z → S spindle" Command="{Binding TransformZToSpindleCommand}"/>
+        <MenuItem Header="Remove any Z move" Command="{Binding TransformRemoveZCommand}"/>
         <Separator/>
         <MenuItem Header="Reparse editor" Command="{Binding ApplyEditorCommand}"/>
       </MenuItem>
@@ -55,29 +71,47 @@
         <MenuItem Header="G54" Command="{Binding SelectCoordCommand}" CommandParameter="G54"/>
         <MenuItem Header="G55" Command="{Binding SelectCoordCommand}" CommandParameter="G55"/>
         <MenuItem Header="G56" Command="{Binding SelectCoordCommand}" CommandParameter="G56"/>
+        <MenuItem Header="G57" Command="{Binding SelectCoordCommand}" CommandParameter="G57"/>
+        <MenuItem Header="G58" Command="{Binding SelectCoordCommand}" CommandParameter="G58"/>
+        <MenuItem Header="G59" Command="{Binding SelectCoordCommand}" CommandParameter="G59"/>
         <Separator/>
         <MenuItem Header="Probing…" Click="OpenProbing_Click"/>
         <MenuItem Header="Height map…" Click="OpenHeightMap_Click"/>
+        <MenuItem Header="Jog path creator…" Click="OpenJogPath_Click"/>
       </MenuItem>
       <MenuItem Header="_Machine">
         <MenuItem Header="COM CNC…" Click="OpenSerial_Click"/>
         <MenuItem Header="2nd Serial / DIY…" Click="OpenSecondSerial_Click"/>
+        <MenuItem Header="3rd Serial…" Click="OpenThirdSerial_Click"/>
         <MenuItem Header="Refresh ports" Command="{Binding RefreshPortsCommand}"/>
         <Separator/>
+        <MenuItem Header="GRBL Setup ($$)…" Click="OpenGrblSetup_Click"/>
+        <MenuItem Header="Laser tools…" Click="OpenLaserTools_Click"/>
         <MenuItem Header="Camera…" Click="OpenCamera_Click"/>
         <MenuItem Header="Projector…" Click="OpenProjector_Click"/>
         <MenuItem Header="Process automation…" Click="OpenAutomation_Click"/>
         <Separator/>
+        <MenuItem Header="Start streaming at line…" Command="{Binding StreamStartFromLineCommand}"/>
         <MenuItem Header="Soft RESET" Command="{Binding SoftResetCommand}"/>
         <MenuItem Header="Kill Alarm $X" Command="{Binding KillAlarmCommand}"/>
         <MenuItem Header="Feed Hold" Command="{Binding FeedHoldCommand}"/>
         <MenuItem Header="Cycle Start" Command="{Binding CycleStartCommand}"/>
+      </MenuItem>
+      <MenuItem Header="_View">
+        <MenuItem Header="Show toolpath" IsCheckable="True" IsChecked="{Binding ShowToolpath}"/>
+        <MenuItem Header="Show pen-up / rapid" IsCheckable="True" IsChecked="{Binding ShowRapidMoves}"/>
+        <MenuItem Header="Show dimensions" IsCheckable="True" IsChecked="{Binding ShowDimensionOverlay}"/>
+        <Separator/>
+        <MenuItem Header="Bring forms to front" Click="BringFormsToFront_Click"/>
       </MenuItem>
       <MenuItem Header="_Simulation">
         <MenuItem Header="Start" Command="{Binding SimStartCommand}"/>
         <MenuItem Header="Pause" Command="{Binding SimPauseCommand}"/>
         <MenuItem Header="Resume" Command="{Binding SimResumeCommand}"/>
         <MenuItem Header="Stop" Command="{Binding SimStopCommand}"/>
+        <Separator/>
+        <MenuItem Header="Speed ×2" Command="{Binding SimFasterCommand}"/>
+        <MenuItem Header="Speed ÷2" Command="{Binding SimSlowerCommand}"/>
       </MenuItem>
     </Menu>
 
@@ -118,6 +152,8 @@
                 <Button Content="Check" Command="{Binding StreamCheckCommand}" Style="{StaticResource GhostButton}" IsEnabled="{Binding IsConnected}"/>
                 <Button Content="Stop" Command="{Binding StreamStopCommand}" Style="{StaticResource GhostButton}"/>
               </UniformGrid>
+              <Button Content="Start at line…" Command="{Binding StreamStartFromLineCommand}" Style="{StaticResource GhostButton}"
+                      IsEnabled="{Binding IsConnected}" Margin="0,4,0,0"/>
               <UniformGrid Columns="2">
                 <Button Content="Pause / Hold" Command="{Binding StreamPauseCommand}" Style="{StaticResource GhostButton}"/>
                 <Button Content="Resume" Command="{Binding StreamResumeCommand}" Style="{StaticResource GhostButton}"/>
@@ -153,10 +189,12 @@
             <StackPanel>
               <TextBlock Text="Overrides" Style="{StaticResource PanelHeader}"/>
               <TextBlock Text="{Binding OvFeed, StringFormat=Feed {0}%}" />
-              <UniformGrid Columns="3">
-                <Button Content="−" Command="{Binding OvFeedMinusCommand}" Style="{StaticResource GhostButton}"/>
+              <UniformGrid Columns="5">
+                <Button Content="−10" Command="{Binding OvFeedMinusCommand}" Style="{StaticResource GhostButton}"/>
+                <Button Content="−1" Command="{Binding OvFeedMinusFineCommand}" Style="{StaticResource GhostButton}"/>
                 <Button Content="100%" Command="{Binding OvFeedResetCommand}" Style="{StaticResource GhostButton}"/>
-                <Button Content="+" Command="{Binding OvFeedPlusCommand}" Style="{StaticResource GhostButton}"/>
+                <Button Content="+1" Command="{Binding OvFeedPlusFineCommand}" Style="{StaticResource GhostButton}"/>
+                <Button Content="+10" Command="{Binding OvFeedPlusCommand}" Style="{StaticResource GhostButton}"/>
               </UniformGrid>
               <TextBlock Text="{Binding OvRapid, StringFormat=Rapid {0}%}" Margin="0,6,0,0"/>
               <UniformGrid Columns="3">
@@ -165,11 +203,20 @@
                 <Button Content="100%" Command="{Binding OvRapid100Command}" Style="{StaticResource GhostButton}"/>
               </UniformGrid>
               <TextBlock Text="{Binding OvSpindle, StringFormat=Spindle {0}%}" Margin="0,6,0,0"/>
-              <UniformGrid Columns="3">
-                <Button Content="−" Command="{Binding OvSpindleMinusCommand}" Style="{StaticResource GhostButton}"/>
+              <UniformGrid Columns="5">
+                <Button Content="−10" Command="{Binding OvSpindleMinusCommand}" Style="{StaticResource GhostButton}"/>
+                <Button Content="−1" Command="{Binding OvSpindleMinusFineCommand}" Style="{StaticResource GhostButton}"/>
                 <Button Content="100%" Command="{Binding OvSpindleResetCommand}" Style="{StaticResource GhostButton}"/>
-                <Button Content="+" Command="{Binding OvSpindlePlusCommand}" Style="{StaticResource GhostButton}"/>
+                <Button Content="+1" Command="{Binding OvSpindlePlusFineCommand}" Style="{StaticResource GhostButton}"/>
+                <Button Content="+10" Command="{Binding OvSpindlePlusCommand}" Style="{StaticResource GhostButton}"/>
               </UniformGrid>
+              <UniformGrid Columns="4" Margin="0,6,0,0">
+                <Button Content="M3" Command="{Binding SpindleCwCommand}" Style="{StaticResource GhostButton}"/>
+                <Button Content="M5" Command="{Binding SpindleStopCommand}" Style="{StaticResource GhostButton}"/>
+                <Button Content="M7" Command="{Binding CoolantMistCommand}" Style="{StaticResource GhostButton}"/>
+                <Button Content="M8" Command="{Binding CoolantFloodCommand}" Style="{StaticResource GhostButton}"/>
+              </UniformGrid>
+              <Button Content="Coolant OFF M9" Command="{Binding CoolantOffCommand}" Style="{StaticResource GhostButton}" Margin="0,4,0,0"/>
             </StackPanel>
           </Border>
 
@@ -202,6 +249,14 @@
                 <TextBlock Grid.Row="1" Text="Rot°" VerticalAlignment="Center"/><TextBox Grid.Row="1" Grid.Column="1" Text="{Binding TransformRotate}"/>
                 <TextBlock Grid.Row="2" Text="dX" VerticalAlignment="Center"/><TextBox Grid.Row="2" Grid.Column="1" Text="{Binding TransformDx}"/>
                 <TextBlock Grid.Row="3" Text="dY" VerticalAlignment="Center"/><TextBox Grid.Row="3" Grid.Column="1" Text="{Binding TransformDy}"/>
+              </Grid>
+              <Grid Margin="0,4,0,0">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="50"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <Grid.RowDefinitions><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+                <TextBlock Text="W→" VerticalAlignment="Center"/><TextBox Grid.Column="1" Text="{Binding TransformTargetWidth}"/>
+                <Button Grid.Column="2" Content="W" Command="{Binding TransformScaleToWidthCommand}" Style="{StaticResource GhostButton}" Margin="4,0,0,0" MinWidth="32"/>
+                <TextBlock Grid.Row="1" Text="H→" VerticalAlignment="Center"/><TextBox Grid.Row="1" Grid.Column="1" Text="{Binding TransformTargetHeight}"/>
+                <Button Grid.Row="1" Grid.Column="2" Content="H" Command="{Binding TransformScaleToHeightCommand}" Style="{StaticResource GhostButton}" Margin="4,0,0,0" MinWidth="32"/>
               </Grid>
               <UniformGrid Columns="3" Margin="0,4,0,0">
                 <Button Content="Scale" Command="{Binding ApplyScaleTransformCommand}" Style="{StaticResource GhostButton}"/>
@@ -295,9 +350,14 @@
             <Image Source="{Binding PlaceholderImage}" Stretch="Uniform"
                    Visibility="{Binding ShowPlaceholder, Converter={StaticResource BoolToVis}}"/>
             <Viewbox Stretch="Uniform" Margin="12">
-              <Canvas Width="{Binding PreviewWidth}" Height="{Binding PreviewHeight}">
-                <Path Stroke="#FF6FBF8A" StrokeThickness="1.2" Data="{Binding ToolpathGeometry}"/>
-                <Path Stroke="#FF4A90A4" StrokeThickness="0.8" StrokeDashArray="2 2" Data="{Binding RapidGeometry}"/>
+              <Canvas Width="{Binding PreviewWidth}" Height="{Binding PreviewHeight}"
+                      Background="Transparent" MouseLeftButtonDown="PreviewCanvas_MouseLeftButtonDown">
+                <Path Stroke="#FF6FBF8A" StrokeThickness="1.2" Data="{Binding ToolpathGeometry}"
+                      Visibility="{Binding ToolpathVisibility}"/>
+                <Path Stroke="#FF4A90A4" StrokeThickness="0.8" StrokeDashArray="2 2" Data="{Binding RapidGeometry}"
+                      Visibility="{Binding RapidVisibility}"/>
+                <TextBlock Text="{Binding DimensionText}" Foreground="#FF8A9AA8" FontSize="10"
+                           Canvas.Left="4" Canvas.Top="4" Visibility="{Binding DimensionVisibility}"/>
                 <Ellipse Width="8" Height="8" Fill="#FFE6C35C" Stroke="#FF1A1F26" StrokeThickness="1"
                          Visibility="{Binding SimMarkerVisibility}"
                          Canvas.Left="{Binding SimX}" Canvas.Top="{Binding SimY}"
@@ -311,13 +371,16 @@
         <Border Style="{StaticResource PanelBorder}" Grid.Row="2">
           <StackPanel>
             <StackPanel Orientation="Horizontal">
-              <RadioButton Content="Edit figure" IsChecked="True" GroupName="mode"/>
-              <RadioButton Content="Jog to figure pos." GroupName="mode" Margin="12,0,0,0"/>
-              <RadioButton Content="Jog to clicked pos." GroupName="mode" Margin="12,0,0,0"/>
-              <CheckBox Content="Add imported graphic to 2D-view" Margin="16,0,0,0"/>
+              <RadioButton Content="Edit figure" IsChecked="{Binding ModeEdit, Mode=TwoWay}" GroupName="mode"/>
+              <RadioButton Content="Jog to figure pos." IsChecked="{Binding ModeJogFigure, Mode=TwoWay}" GroupName="mode" Margin="12,0,0,0"/>
+              <RadioButton Content="Jog to clicked pos." IsChecked="{Binding ModeJogClick, Mode=TwoWay}" GroupName="mode" Margin="12,0,0,0"/>
+              <CheckBox Content="Add imported graphic to 2D-view" IsChecked="{Binding AddImportedToView, Mode=TwoWay}" Margin="16,0,0,0"/>
             </StackPanel>
-            <TextBox Margin="0,6,0,0" Tag="url" ToolTip="Paste URL of SVG / DXF file here"
-                     Text="Paste URL of SVG / DXF file here"/>
+            <DockPanel Margin="0,6,0,0">
+              <Button DockPanel.Dock="Right" Content="Load" Command="{Binding LoadFromUrlCommand}" MinWidth="64" Margin="6,0,0,0"/>
+              <TextBox ToolTip="Paste file path or http(s) URL of SVG / DXF"
+                       Text="{Binding UrlPaste, UpdateSourceTrigger=PropertyChanged}"/>
+            </DockPanel>
           </StackPanel>
         </Border>
       </Grid>
@@ -382,15 +445,15 @@
                 <TextBlock Grid.Row="1" Text="Feed" VerticalAlignment="Center"/><TextBox Grid.Row="1" Grid.Column="1" Text="{Binding JogFeed}"/>
               </Grid>
               <UniformGrid Columns="3">
-                <Button Content="↖" Command="{Binding JogCommand}" CommandParameter="X-" Style="{StaticResource GhostButton}" Tag="diag"/>
+                <Button Content="↖" Command="{Binding JogCommand}" CommandParameter="X-Y+" Style="{StaticResource GhostButton}"/>
                 <Button Content="Y+" Command="{Binding JogCommand}" CommandParameter="Y+"/>
-                <Button Content="↗" Command="{Binding JogCommand}" CommandParameter="X+" Style="{StaticResource GhostButton}"/>
+                <Button Content="↗" Command="{Binding JogCommand}" CommandParameter="X+Y+" Style="{StaticResource GhostButton}"/>
                 <Button Content="X-" Command="{Binding JogCommand}" CommandParameter="X-"/>
                 <Button Content="Cancel" Command="{Binding JogCancelCommand}" Style="{StaticResource GhostButton}"/>
                 <Button Content="X+" Command="{Binding JogCommand}" CommandParameter="X+"/>
-                <Button Content="↙" Style="{StaticResource GhostButton}" IsEnabled="False"/>
+                <Button Content="↙" Command="{Binding JogCommand}" CommandParameter="X-Y-" Style="{StaticResource GhostButton}"/>
                 <Button Content="Y-" Command="{Binding JogCommand}" CommandParameter="Y-"/>
-                <Button Content="↘" Style="{StaticResource GhostButton}" IsEnabled="False"/>
+                <Button Content="↘" Command="{Binding JogCommand}" CommandParameter="X+Y-" Style="{StaticResource GhostButton}"/>
               </UniformGrid>
               <UniformGrid Columns="2" Margin="0,6,0,0">
                 <Button Content="Z+" Command="{Binding JogCommand}" CommandParameter="Z+"/>

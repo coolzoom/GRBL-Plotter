@@ -1,7 +1,6 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
-using GrblPlotter.Wpf.Models;
-using GrblPlotter.Wpf.Services;
 using GrblPlotter.Wpf.ViewModels;
 
 namespace GrblPlotter.Wpf.Views;
@@ -25,6 +24,13 @@ public partial class MainWindow : Window
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.O) { Vm.OpenFileCommand.Execute(null); e.Handled = true; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.S) { Vm.SaveFileCommand.Execute(null); e.Handled = true; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.Z) { Vm.UndoCommand.Execute(null); e.Handled = true; }
+        if (e.Key == Key.Escape) { Vm.JogCancelCommand.Execute(null); e.Handled = true; }
+        if (e.Key == Key.Space && Keyboard.Modifiers == ModifierKeys.None &&
+            !(Keyboard.FocusedElement is TextBox))
+        {
+            Vm.FeedHoldCommand.Execute(null);
+            e.Handled = true;
+        }
     }
 
     private void ShowTool(string key, Func<Window> factory)
@@ -85,6 +91,57 @@ public partial class MainWindow : Window
 
     private void OpenSecondSerial_Click(object sender, RoutedEventArgs e) =>
         ShowTool("serial2", () => new SecondSerialWindow());
+
+    private void OpenThirdSerial_Click(object sender, RoutedEventArgs e) =>
+        ShowTool("serial3", () =>
+        {
+            var w = new SecondSerialWindow { Title = "3rd Serial COM" };
+            return w;
+        });
+
+    private void OpenGrblSetup_Click(object sender, RoutedEventArgs e) =>
+        ShowTool("grblsetup", () => new GrblSetupWindow(Vm.Serial));
+
+    private void OpenLaserTools_Click(object sender, RoutedEventArgs e) =>
+        ShowTool("laser", () => new LaserToolsWindow(Vm.Serial, g => Vm.ApplyGeneratedGCode(g, "laser-test.nc")));
+
+    private void OpenJogPath_Click(object sender, RoutedEventArgs e) =>
+        ShowTool("jogpath", () => new JogPathCreateWindow(g => Vm.ApplyGeneratedGCode(g, "jog-path.nc")));
+
+    private void BringFormsToFront_Click(object sender, RoutedEventArgs e)
+    {
+        Activate();
+        foreach (var w in _tools.Values.Where(x => x.IsLoaded))
+        {
+            w.Activate();
+            w.Topmost = true;
+            w.Topmost = false;
+        }
+    }
+
+    private void RecentMenu_SubmenuOpened(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menu) return;
+        menu.Items.Clear();
+        if (Vm.RecentFiles.Count == 0)
+        {
+            menu.Items.Add(new MenuItem { Header = "(empty)", IsEnabled = false });
+            return;
+        }
+        foreach (var path in Vm.RecentFiles.ToList())
+        {
+            var item = new MenuItem { Header = path, Tag = path };
+            item.Click += (_, _) => Vm.OpenRecentCommand.Execute(path);
+            menu.Items.Add(item);
+        }
+    }
+
+    private void PreviewCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Canvas canvas) return;
+        var p = e.GetPosition(canvas);
+        Vm.CanvasClick(p.X, p.Y);
+    }
 
     private void Window_DragOver(object sender, DragEventArgs e)
     {

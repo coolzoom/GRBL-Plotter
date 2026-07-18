@@ -72,6 +72,13 @@ public sealed class AppSettings
     public double JogStep { get; set; } = 1;
     public double JogFeed { get; set; } = 1000;
     public List<CustomButtonDto> CustomButtons { get; set; } = new();
+    public List<string> RecentFiles { get; set; } = new();
+    public bool AddImportedToView { get; set; }
+    public bool ShowRapidMoves { get; set; } = true;
+    public bool ShowToolpath { get; set; } = true;
+    public bool ShowDimensionOverlay { get; set; } = true;
+    public bool ShowGrid { get; set; } = true;
+    public string CanvasMode { get; set; } = "Edit"; // Edit | JogFigure | JogClick
 
     [JsonIgnore]
     public static string SettingsDirectory =>
