@@ -507,24 +507,24 @@
                     <MenuItem Header="Clear background" Command="{Binding ClearBackgroundCommand}"/>
                   </ContextMenu>
                 </Canvas.ContextMenu>
-                <Path Stroke="#FF5A6A78" StrokeThickness="1.0" Data="{Binding RulerGeometry}"
+                <Path Stroke="#FF8A9AAB" StrokeThickness="1.0" Data="{Binding RulerGeometry}"
                       Visibility="{Binding RulerVisibility}"/>
-                <Path Stroke="#FFC45C5C" StrokeThickness="1.2" StrokeDashArray="4 2" Data="{Binding LimitsGeometry}"
+                <Path Stroke="#FFFF7A7A" StrokeThickness="1.2" StrokeDashArray="4 2" Data="{Binding LimitsGeometry}"
                       Visibility="{Binding LimitsVisibility}"/>
-                <Path Stroke="#FF3A4652" StrokeThickness="1.0" Data="{Binding BackgroundGeometry}"
-                      Visibility="{Binding BackgroundVisibility}" Opacity="0.55"/>
-                <Path Stroke="#FF6FBF8A" StrokeThickness="1.2" Data="{Binding ToolpathGeometry}"
+                <Path Stroke="#FF5A6A7A" StrokeThickness="1.0" Data="{Binding BackgroundGeometry}"
+                      Visibility="{Binding BackgroundVisibility}" Opacity="0.65"/>
+                <Path Stroke="#FF7DDA95" StrokeThickness="1.4" Data="{Binding ToolpathGeometry}"
                       Visibility="{Binding ToolpathVisibility}"/>
-                <Path Stroke="#FF4A90A4" StrokeThickness="0.8" StrokeDashArray="2 2" Data="{Binding RapidGeometry}"
+                <Path Stroke="#FF6EC4D8" StrokeThickness="1.0" StrokeDashArray="2 2" Data="{Binding RapidGeometry}"
                       Visibility="{Binding RapidVisibility}"/>
-                <Path Stroke="#FFE6C35C" StrokeThickness="2.2" Data="{Binding SelectionGeometry}"
+                <Path Stroke="#FFFFC857" StrokeThickness="2.4" Data="{Binding SelectionGeometry}"
                       Visibility="{Binding SelectionVisibility}"/>
-                <Path Stroke="#FFB08D57" StrokeThickness="1.4" Data="{Binding ToolTableGeometry}"
+                <Path Stroke="#FFE0B86A" StrokeThickness="1.5" Data="{Binding ToolTableGeometry}"
                       Visibility="{Binding ToolTableVisibility}"/>
-                <TextBlock Text="{Binding InfoHudText}" Foreground="#FF8A9AA8" FontSize="10"
-                           Canvas.Left="4" Canvas.Top="4" Visibility="{Binding InfoHudVisibility}"/>
-                <TextBlock Text="{Binding DimensionText}" Foreground="#FF8A9AA8" FontSize="10"
-                           Canvas.Left="4" Canvas.Top="18" Visibility="{Binding DimensionVisibility}"/>
+                <TextBlock Text="{Binding InfoHudText}" Foreground="{StaticResource TextMutedBrush}" FontSize="11"
+                           FontWeight="SemiBold" Canvas.Left="4" Canvas.Top="4" Visibility="{Binding InfoHudVisibility}"/>
+                <TextBlock Text="{Binding DimensionText}" Foreground="{StaticResource TextMutedBrush}" FontSize="11"
+                           Canvas.Left="4" Canvas.Top="20" Visibility="{Binding DimensionVisibility}"/>
                 <Ellipse Width="10" Height="10" Fill="#FFFF6B6B" Stroke="#FF1A1F26" StrokeThickness="1"
                          Visibility="{Binding MarkerVisibility}"
                          Canvas.Left="{Binding MarkerCanvasX}" Canvas.Top="{Binding MarkerCanvasY}"
