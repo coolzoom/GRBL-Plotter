@@ -230,6 +230,7 @@ public partial class MainViewModel : ObservableObject
         catch { /* optional */ }
 
         LoadCustomButtons();
+        InitParityFromSettings();
         RefreshPorts();
         if (!string.IsNullOrEmpty(_settings.Connection.LastPort) && Ports.Contains(_settings.Connection.LastPort))
             SelectedPort = _settings.Connection.LastPort;
@@ -239,23 +240,25 @@ public partial class MainViewModel : ObservableObject
         _uiTimer.Start();
     }
 
+    partial void InitParityFromSettings();
+
     private void LoadCustomButtons()
     {
-        CustomButtons.Clear();
-        var defaults = new[]
+        if (_settings.CustomButtons.Count == 0)
         {
-            new CustomButtonItem("Home", "$H"),
-            new CustomButtonItem("Unlock", "$X"),
-            new CustomButtonItem("Sleep", "$SLP"),
-            new CustomButtonItem("$$", "$$"),
-            new CustomButtonItem("$G", "$G"),
-            new CustomButtonItem("M5", "M5"),
-            new CustomButtonItem("M8", "M8"),
-            new CustomButtonItem("M9", "M9"),
-        };
-        foreach (var b in defaults) CustomButtons.Add(b);
-        foreach (var b in _settings.CustomButtons)
-            CustomButtons.Add(new CustomButtonItem(b.Label, b.Code));
+            var defaults = new (string Label, string Code)[]
+            {
+                ("Home", "$H"), ("Unlock", "$X"), ("Sleep", "$SLP"), ("$$", "$$"),
+                ("$G", "$G"), ("M5", "M5"), ("M8", "M8"), ("M9", "M9"),
+            };
+            for (int i = 0; i < 16; i++)
+            {
+                _settings.CustomButtons.Add(i < defaults.Length
+                    ? new CustomButtonDto { Label = defaults[i].Label, Code = defaults[i].Code }
+                    : new CustomButtonDto { Label = $"C{i + 1}", Code = "" });
+            }
+        }
+        RefreshCustomButtonsFromSettings();
     }
 
     private void RefreshTitle() =>
@@ -351,6 +354,7 @@ public partial class MainViewModel : ObservableObject
         try
         {
             var doc = ImportFacade.OpenAny(path);
+            doc = PostProcessImport(doc);
             if (AddImportedToView && Document.Segments.Count > 0 && doc.Segments.Count > 0)
             {
                 PushUndo();
@@ -373,12 +377,23 @@ public partial class MainViewModel : ObservableObject
                 ApplyDocument(doc);
             }
             RememberRecent(path);
+            TrackLoadedPath(path);
         }
         catch (Exception ex)
         {
             StatusBanner = $"Load failed: {ex.Message}";
             OnLog($"[ERROR] {ex.Message}");
         }
+    }
+
+    private GCodeDocument PostProcessImport(GCodeDocument doc)
+    {
+        if (doc.Segments.Count == 0) return doc;
+        if (_settings.ImportHatchFill)
+            doc = HatchService.HatchDocument(doc, _settings.ImportHatchSpacing, _settings.ImportHatchAngle);
+        if (_settings.ImportTangential)
+            doc = TangentialService.Apply(doc, _settings.RotaryAxisName, _settings.ImportTangentialAngle);
+        return doc;
     }
 
     private void RememberRecent(string path)
@@ -642,8 +657,17 @@ public partial class MainViewModel : ObservableObject
             PreviewWidth = 400;
             PreviewHeight = 300;
             _mapScale = 1;
-            _mapMinX = 0;
-            _mapMaxY = 0;
+            _mapMinX = _settings.MachineMinX;
+            _mapMaxY = _settings.MachineMaxY;
+            if (ShowFixedMachineArea || ShowMachineLimits)
+            {
+                double mSpanX = Math.Max(_settings.MachineMaxX - _settings.MachineMinX, 1);
+                double mSpanY = Math.Max(_settings.MachineMaxY - _settings.MachineMinY, 1);
+                _mapScale = PreviewTarget / Math.Max(mSpanX, mSpanY);
+                PreviewWidth = mSpanX * _mapScale + PreviewPad * 2;
+                PreviewHeight = mSpanY * _mapScale + PreviewPad * 2;
+            }
+            RebuildOverlays();
             return;
         }
 
@@ -698,6 +722,7 @@ public partial class MainViewModel : ObservableObject
             MarkerCanvasY = (_mapMaxY - _markerWorldY) * _mapScale + PreviewPad;
             MarkerVisibility = Visibility.Visible;
         }
+        RebuildOverlays();
     }
 
     private void AfterTransform()
@@ -1440,9 +1465,10 @@ public partial class MainViewModel : ObservableObject
     {
         if (Document.Segments.Count == 0) return;
         PushUndo();
-        GCodeTransformService.SimpleRadiusOffset(Document, RadiusComp);
+        GCodeTransformService.RadiusCompensation(Document, RadiusComp);
+        RememberLastTransform("radius comp", d => GCodeTransformService.RadiusCompensation(d, RadiusComp));
         AfterTransform();
-        StatusBanner = $"radius offset {RadiusComp}";
+        StatusBanner = $"radius compensation {RadiusComp}";
     }
 
     [RelayCommand]
@@ -1450,7 +1476,9 @@ public partial class MainViewModel : ObservableObject
     {
         if (Document.Segments.Count == 0) { StatusBanner = "no graphic for hatch"; return; }
         PushUndo();
-        Document = HatchService.HatchDocument(Document, spacing: 1.0, angleDeg: 45);
+        Document = HatchService.HatchDocument(Document,
+            spacing: _settings.ImportHatchSpacing > 0 ? _settings.ImportHatchSpacing : 1.0,
+            angleDeg: _settings.ImportHatchAngle);
         GcodeText = string.Join(Environment.NewLine, Document.Lines);
         _streamer.Load(Document);
         _simulator.Load(Document);
@@ -1486,6 +1514,7 @@ public partial class MainViewModel : ObservableObject
             CurrentWorkPos.X = s.Work.X;
             CurrentWorkPos.Y = s.Work.Y;
             CurrentWorkPos.Z = s.Work.Z;
+            UpdateAbcFromStatus(s);
             OvFeed = s.OvFeed;
             OvRapid = s.OvRapid;
             OvSpindle = s.OvSpindle;

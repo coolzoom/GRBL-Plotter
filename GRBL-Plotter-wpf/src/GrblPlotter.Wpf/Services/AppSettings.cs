@@ -80,6 +80,29 @@ public sealed class AppSettings
     public bool ShowGrid { get; set; } = true;
     public string CanvasMode { get; set; } = "Edit"; // Edit | JogFigure | JogClick
 
+    // Axes / machine (Wave A–B)
+    public int AxisCount { get; set; } = 3; // 3=XYZ, 4=+A, 5=+B, 6=+C
+    public string RotaryAxisName { get; set; } = "A"; // A|B|C for mirror rotary
+    public double MachineMinX { get; set; }
+    public double MachineMinY { get; set; }
+    public double MachineMaxX { get; set; } = 300;
+    public double MachineMaxY { get; set; } = 200;
+    public bool ShowRuler { get; set; }
+    public bool ShowInfoHud { get; set; } = true;
+    public bool ShowMachineLimits { get; set; }
+    public bool ShowFixedMachineArea { get; set; }
+    public bool ShowToolTableOverlay { get; set; }
+
+    // Import Graphic options
+    public bool ImportHatchFill { get; set; }
+    public double ImportHatchSpacing { get; set; } = 1.0;
+    public double ImportHatchAngle { get; set; } = 45;
+    public bool ImportTangential { get; set; }
+    public double ImportTangentialAngle { get; set; }
+
+    public string LastLoadedPath { get; set; } = "";
+    public string Language { get; set; } = "en";
+
     [JsonIgnore]
     public static string SettingsDirectory =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GRBL-Plotter-Wpf");

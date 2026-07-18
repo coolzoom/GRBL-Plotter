@@ -217,20 +217,80 @@ public static class GCodeTransformService
     }
 
     /// <summary>Very simple outward/inward offset of each segment along its normal (not a full CAM offset).</summary>
-    public static void SimpleRadiusOffset(GCodeDocument doc, double radius)
+    public static void SimpleRadiusOffset(GCodeDocument doc, double radius) =>
+        RadiusCompensation(doc, radius);
+
+    /// <summary>
+    /// Path offset with corner joins (WinForms TransformGCodeRadiusCorrection subset for linear paths).
+    /// Positive radius = left of travel direction; negative = right.
+    /// </summary>
+    public static void RadiusCompensation(GCodeDocument doc, double radius)
     {
-        foreach (var s in doc.Segments)
+        if (doc.Segments.Count == 0 || Math.Abs(radius) < 1e-12) return;
+        var cuts = doc.Segments.Where(s => !s.Rapid).ToList();
+        if (cuts.Count == 0) return;
+
+        var offset = new List<GCodeSegment>();
+        for (int i = 0; i < cuts.Count; i++)
         {
-            if (s.Rapid) continue;
+            var s = cuts[i];
             double dx = s.X1 - s.X0, dy = s.Y1 - s.Y0;
             double len = Math.Sqrt(dx * dx + dy * dy);
             if (len < 1e-9) continue;
             double nx = -dy / len * radius, ny = dx / len * radius;
-            s.X0 += nx; s.Y0 += ny;
-            s.X1 += nx; s.Y1 += ny;
+            double x0 = s.X0 + nx, y0 = s.Y0 + ny, x1 = s.X1 + nx, y1 = s.Y1 + ny;
+
+            // Miter join with previous cut if connected
+            if (offset.Count > 0)
+            {
+                var prev = offset[^1];
+                if (Math.Abs(prev.X1 - (s.X0 + nx)) > 1e-3 || Math.Abs(prev.Y1 - (s.Y0 + ny)) > 1e-3)
+                {
+                    // connect with join segment
+                    offset.Add(new GCodeSegment { Rapid = false, X0 = prev.X1, Y0 = prev.Y1, X1 = x0, Y1 = y0 });
+                }
+                else
+                {
+                    // average join point
+                    x0 = (prev.X1 + x0) / 2;
+                    y0 = (prev.Y1 + y0) / 2;
+                    prev.X1 = x0; prev.Y1 = y0;
+                }
+            }
+            offset.Add(new GCodeSegment { Rapid = false, X0 = x0, Y0 = y0, X1 = x1, Y1 = y1 });
         }
-        Rebuild(doc);
+
+        // Keep rapids as approach, then offset cuts
+        var rebuilt = new List<GCodeSegment>();
+        foreach (var s in doc.Segments.Where(s => s.Rapid)) rebuilt.Add(s);
+        rebuilt.AddRange(offset);
+        var gdoc = GCodeParser.BuildFromSegments(rebuilt, path: doc.FilePath);
+        doc.Lines.Clear(); doc.Lines.AddRange(gdoc.Lines);
+        doc.Segments.Clear(); doc.Segments.AddRange(gdoc.Segments);
+        doc.MinX = gdoc.MinX; doc.MaxX = gdoc.MaxX; doc.MinY = gdoc.MinY; doc.MaxY = gdoc.MaxY;
     }
+
+    /// <summary>Negate rotary axis words (A/B/C) in source lines — WinForms Mirror Rotary.</summary>
+    public static void MirrorRotary(GCodeDocument doc, string axisName = "A")
+    {
+        axisName = (axisName ?? "A").Trim().ToUpperInvariant();
+        if (axisName is not ("A" or "B" or "C")) axisName = "A";
+        var rx = new System.Text.RegularExpressions.Regex($@"([{axisName}{char.ToLowerInvariant(axisName[0])}])\s*(-?\d*\.?\d+)");
+        var cleaned = new List<string>();
+        foreach (var raw in doc.Lines)
+        {
+            cleaned.Add(rx.Replace(raw, m =>
+            {
+                double.TryParse(m.Groups[2].Value, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var v);
+                return FormattableString.Invariant($"{m.Groups[1].Value}{-v:0.####}");
+            }));
+        }
+        ReplaceFromParsed(doc, cleaned);
+    }
+
+    public static void ScaleYToRotaryDegrees(GCodeDocument doc, double diameterMm) =>
+        ScaleAxisToRotaryDegrees(doc, diameterMm, useX: false);
 
     private static void ReplaceFromParsed(GCodeDocument doc, List<string> cleaned)
     {

@@ -129,6 +129,72 @@
         </ScrollViewer>
       </TabItem>
 
+      <!-- Axes / machine area -->
+      <TabItem Header="Axes">
+        <StackPanel Margin="8">
+          <Grid Margin="0,4">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="160"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+            <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+            <TextBlock Text="Axis count (3–6)" VerticalAlignment="Center"/>
+            <TextBox Grid.Column="1" Text="{Binding Settings.AxisCount}"/>
+            <TextBlock Grid.Row="1" Text="Rotary axis name" VerticalAlignment="Center"/>
+            <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding RotaryAxes}"
+                      SelectedItem="{Binding Settings.RotaryAxisName}"/>
+            <TextBlock Grid.Row="2" Text="Machine min X/Y" VerticalAlignment="Center"/>
+            <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal">
+              <TextBox Width="80" Text="{Binding Settings.MachineMinX}" Margin="0,0,4,0"/>
+              <TextBox Width="80" Text="{Binding Settings.MachineMinY}"/>
+            </StackPanel>
+            <TextBlock Grid.Row="3" Text="Machine max X/Y" VerticalAlignment="Center"/>
+            <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal">
+              <TextBox Width="80" Text="{Binding Settings.MachineMaxX}" Margin="0,0,4,0"/>
+              <TextBox Width="80" Text="{Binding Settings.MachineMaxY}"/>
+            </StackPanel>
+            <CheckBox Grid.Row="4" Grid.ColumnSpan="2" Content="Show machine limits overlay" IsChecked="{Binding Settings.ShowMachineLimits}"/>
+            <CheckBox Grid.Row="5" Grid.ColumnSpan="2" Content="Use fixed machine area for view" IsChecked="{Binding Settings.ShowFixedMachineArea}"/>
+          </Grid>
+          <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,8,0,0"
+                     Text="Axis count 4/5/6 enables A / B / C DRO, zero and jog on the main panel."/>
+        </StackPanel>
+      </TabItem>
+
+      <!-- Import graphic -->
+      <TabItem Header="Import">
+        <StackPanel Margin="8">
+          <CheckBox Content="Auto hatch fill on import" IsChecked="{Binding Settings.ImportHatchFill}"/>
+          <Grid Margin="0,6">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="140"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+            <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+            <TextBlock Text="Hatch spacing" VerticalAlignment="Center"/>
+            <TextBox Grid.Column="1" Text="{Binding Settings.ImportHatchSpacing}"/>
+            <TextBlock Grid.Row="1" Text="Hatch angle °" VerticalAlignment="Center"/>
+            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Settings.ImportHatchAngle}"/>
+            <CheckBox Grid.Row="2" Grid.ColumnSpan="2" Content="Apply tangential axis on import" IsChecked="{Binding Settings.ImportTangential}" Margin="0,6,0,0"/>
+          </Grid>
+          <Grid Margin="0,4">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="140"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+            <TextBlock Text="Tangential offset °" VerticalAlignment="Center"/>
+            <TextBox Grid.Column="1" Text="{Binding Settings.ImportTangentialAngle}"/>
+          </Grid>
+        </StackPanel>
+      </TabItem>
+
+      <!-- Custom 1–16 -->
+      <TabItem Header="Custom 1–16">
+        <DockPanel Margin="8">
+          <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,8"
+                     Text="Edit labels and G-code scripts for the 16 main-panel buttons."/>
+          <DataGrid ItemsSource="{Binding Settings.CustomButtons}" AutoGenerateColumns="False"
+                    CanUserAddRows="False" CanUserDeleteRows="False" HeadersVisibility="Column"
+                    AlternatingRowBackground="{StaticResource SurfaceAltBrush}">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Label" Binding="{Binding Label}" Width="90"/>
+              <DataGridTextColumn Header="Code / script" Binding="{Binding Code}" Width="*"/>
+            </DataGrid.Columns>
+          </DataGrid>
+        </DockPanel>
+      </TabItem>
+
       <!-- Hotkeys help -->
       <TabItem Header="Hotkeys">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -138,12 +204,14 @@
               <Run Text="Ctrl+O"/><Run Text="  Open G-Code file" Foreground="{StaticResource TextMutedBrush}"/><LineBreak/>
               <Run Text="Ctrl+S"/><Run Text="  Save G-Code file" Foreground="{StaticResource TextMutedBrush}"/><LineBreak/>
               <Run Text="Space"/><Run Text="   Feed hold" Foreground="{StaticResource TextMutedBrush}"/><LineBreak/>
-              <Run Text="Ctrl+R"/><Run Text="  Cycle start / resume" Foreground="{StaticResource TextMutedBrush}"/><LineBreak/>
-              <Run Text="Esc"/><Run Text="     Soft reset (Ctrl-X)" Foreground="{StaticResource TextMutedBrush}"/><LineBreak/>
+              <Run Text="Ctrl+R"/><Run Text="  Soft reset" Foreground="{StaticResource TextMutedBrush}"/><LineBreak/>
+              <Run Text="Esc"/><Run Text="     Jog cancel" Foreground="{StaticResource TextMutedBrush}"/><LineBreak/>
               <Run Text="Arrow keys"/><Run Text="  Jog X/Y" Foreground="{StaticResource TextMutedBrush}"/><LineBreak/>
               <Run Text="PgUp / PgDn"/><Run Text="  Jog Z" Foreground="{StaticResource TextMutedBrush}"/><LineBreak/>
+              <Run Text="Shift+drag"/><Run Text="  Pan 2D view" Foreground="{StaticResource TextMutedBrush}"/><LineBreak/>
+              <Run Text="Wheel"/><Run Text="     Zoom 2D view" Foreground="{StaticResource TextMutedBrush}"/><LineBreak/>
               <Run Text="F5"/><Run Text="      Start streaming" Foreground="{StaticResource TextMutedBrush}"/><LineBreak/>
-              <Run Text="F6"/><Run Text="      Check-mode run" Foreground="{StaticResource TextMutedBrush}"/><LineBreak/>
+              <Run Text="F6"/><Run Text="      Pause stream" Foreground="{StaticResource TextMutedBrush}"/><LineBreak/>
               <Run Text="F7"/><Run Text="      Stop streaming" Foreground="{StaticResource TextMutedBrush}"/><LineBreak/>
             </TextBlock>
           </StackPanel>

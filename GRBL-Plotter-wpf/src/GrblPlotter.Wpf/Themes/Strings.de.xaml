@@ -1,0 +1,21 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+  <sys:String x:Key="Str.File">_Datei</sys:String>
+  <sys:String x:Key="Str.Open">Öffnen…</sys:String>
+  <sys:String x:Key="Str.Save">Speichern…</sys:String>
+  <sys:String x:Key="Str.Exit">Beenden</sys:String>
+  <sys:String x:Key="Str.Setup">Einstellungen…</sys:String>
+  <sys:String x:Key="Str.Streaming">G-Code Streaming</sys:String>
+  <sys:String x:Key="Str.Jog">Verfahren / Jog</sys:String>
+  <sys:String x:Key="Str.Language">Sprache</sys:String>
+  <sys:String x:Key="Str.View">_Ansicht</sys:String>
+  <sys:String x:Key="Str.Transform">_G-Code Transformieren</sys:String>
+  <sys:String x:Key="Str.Machine">_Maschine</sys:String>
+  <sys:String x:Key="Str.Workpiece">_Werkstück</sys:String>
+  <sys:String x:Key="Str.CustomButtons">Benutzer 1–16</sys:String>
+  <sys:String x:Key="Str.ResetZoom">Zoom zurücksetzen</sys:String>
+  <sys:String x:Key="Str.DiyPad">DIY Control Pad…</sys:String>
+  <sys:String x:Key="Str.Ruler">Lineal anzeigen</sys:String>
+  <sys:String x:Key="Str.MachineLimits">Maschinengrenzen anzeigen</sys:String>
+</ResourceDictionary>

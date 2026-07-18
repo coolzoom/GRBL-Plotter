@@ -5,7 +5,17 @@
   <sys:String x:Key="Str.Open">打开…</sys:String>
   <sys:String x:Key="Str.Save">保存…</sys:String>
   <sys:String x:Key="Str.Exit">退出</sys:String>
+  <sys:String x:Key="Str.Setup">设置…</sys:String>
   <sys:String x:Key="Str.Streaming">G代码流送</sys:String>
-  <sys:String x:Key="Str.Jog">移动 / 点动</sys:String>
+  <sys:String x:Key="Str.Jog">点动 / 移动</sys:String>
   <sys:String x:Key="Str.Language">语言</sys:String>
+  <sys:String x:Key="Str.View">视图(_V)</sys:String>
+  <sys:String x:Key="Str.Transform">G代码变换(_T)</sys:String>
+  <sys:String x:Key="Str.Machine">机床(_M)</sys:String>
+  <sys:String x:Key="Str.Workpiece">工件(_W)</sys:String>
+  <sys:String x:Key="Str.CustomButtons">自定义 1–16</sys:String>
+  <sys:String x:Key="Str.ResetZoom">重置缩放</sys:String>
+  <sys:String x:Key="Str.DiyPad">DIY 控制板…</sys:String>
+  <sys:String x:Key="Str.Ruler">显示标尺</sys:String>
+  <sys:String x:Key="Str.MachineLimits">显示机床限位</sys:String>
 </ResourceDictionary>

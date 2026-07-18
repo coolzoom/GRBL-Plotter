@@ -10,6 +10,7 @@ public partial class SetupViewModel : ObservableObject
     [ObservableProperty] private string _statusText = "";
 
     public string[] DeviceOptions { get; } = { "Laser", "Plotter", "Router" };
+    public string[] RotaryAxes { get; } = { "A", "B", "C" };
     public int[] BaudRates { get; } = { 9600, 19200, 38400, 57600, 115200, 230400 };
 
     public SetupViewModel() : this(AppSettings.Load())
@@ -19,6 +20,19 @@ public partial class SetupViewModel : ObservableObject
     public SetupViewModel(AppSettings settings)
     {
         _settings = settings;
+        EnsureCustomButtons();
+    }
+
+    private void EnsureCustomButtons()
+    {
+        while (Settings.CustomButtons.Count < 16)
+            Settings.CustomButtons.Add(new CustomButtonDto
+            {
+                Label = $"C{Settings.CustomButtons.Count + 1}",
+                Code = ""
+            });
+        if (Settings.CustomButtons.Count > 16)
+            Settings.CustomButtons.RemoveRange(16, Settings.CustomButtons.Count - 16);
     }
 
     [RelayCommand]

@@ -12,6 +12,7 @@
     <Product>GRBL Plotter WPF</Product>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="AvalonEdit" Version="6.3.1.120" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="FlashCap" Version="1.10.0" />
     <PackageReference Include="System.IO.Ports" Version="10.0.10" />
@@ -19,5 +20,8 @@
   <ItemGroup>
     <Resource Include="Assets\modell.png" />
     <Resource Include="Assets\Icon.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="data\fonts\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

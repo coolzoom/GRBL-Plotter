@@ -1,11 +1,15 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Threading;
 using GrblPlotter.Wpf.Services;
 using GrblPlotter.Wpf.Services.Import;
 using GrblPlotter.Wpf.ViewModels;
+using ICSharpCode.AvalonEdit.Folding;
+using ICSharpCode.AvalonEdit.Search;
 
 namespace GrblPlotter.Wpf.Views;
 
@@ -13,6 +17,12 @@ public partial class MainWindow : Window
 {
     private readonly Dictionary<string, Window> _tools = new();
     private GamePadService? _gamePad;
+    private FoldingManager? _foldingManager;
+    private bool _syncingEditor;
+    private bool _panning;
+    private Point _panStart;
+    private double _panOriginX, _panOriginY;
+    private System.Windows.Point _lastCanvasClick;
 
     public MainWindow()
     {
@@ -22,11 +32,50 @@ public partial class MainWindow : Window
 
     private MainViewModel Vm => (MainViewModel)DataContext;
 
+    private void Window_Loaded(object sender, RoutedEventArgs e)
+    {
+        SearchPanel.Install(CodeEditor);
+        _foldingManager = FoldingManager.Install(CodeEditor.TextArea);
+        CodeEditor.Text = Vm.GcodeText ?? "";
+        CodeEditor.TextChanged += CodeEditor_TextChanged;
+        Vm.PropertyChanged += Vm_PropertyChanged;
+        ApplyXmlFolding(1);
+        if (!string.IsNullOrEmpty(Vm.Settings.Language))
+            LocalizationService.Apply(Vm.Settings.Language);
+    }
+
+    private void Vm_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(MainViewModel.GcodeText) || _syncingEditor) return;
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (_syncingEditor) return;
+            _syncingEditor = true;
+            try
+            {
+                var caret = CodeEditor.CaretOffset;
+                CodeEditor.Text = Vm.GcodeText ?? "";
+                CodeEditor.CaretOffset = Math.Clamp(caret, 0, CodeEditor.Text.Length);
+                ApplyXmlFolding(1);
+            }
+            finally { _syncingEditor = false; }
+        }, DispatcherPriority.Background);
+    }
+
+    private void CodeEditor_TextChanged(object? sender, EventArgs e)
+    {
+        if (_syncingEditor) return;
+        _syncingEditor = true;
+        try { Vm.GcodeText = CodeEditor.Text; }
+        finally { _syncingEditor = false; }
+    }
+
     private void Exit_Click(object sender, RoutedEventArgs e) => Close();
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (Keyboard.FocusedElement is TextBox && e.Key is not (Key.Escape or Key.F5 or Key.F6 or Key.F7))
+        if ((Keyboard.FocusedElement is TextBox || CodeEditor.TextArea.IsKeyboardFocusWithin) &&
+            e.Key is not (Key.Escape or Key.F5 or Key.F6 or Key.F7))
             return;
 
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.O) { Vm.OpenFileCommand.Execute(null); e.Handled = true; }
@@ -73,8 +122,19 @@ public partial class MainWindow : Window
     private void OpenSerial_Click(object sender, RoutedEventArgs e) =>
         ShowTool("serial", () => new SerialWindow { DataContext = DataContext });
 
-    private void OpenSetup_Click(object sender, RoutedEventArgs e) =>
-        ShowTool("setup", () => new SetupWindow(Vm.Settings));
+    private void OpenSetup_Click(object sender, RoutedEventArgs e)
+    {
+        ShowTool("setup", () =>
+        {
+            var w = new SetupWindow(Vm.Settings);
+            w.Closed += (_, _) =>
+            {
+                Vm.RefreshCustomButtonsFromSettings();
+                Vm.ReloadParityFromSettings();
+            };
+            return w;
+        });
+    }
 
     private void OpenAbout_Click(object sender, RoutedEventArgs e) =>
         ShowTool("about", () => new AboutWindow());
@@ -110,14 +170,13 @@ public partial class MainWindow : Window
         ShowTool("wire", () => new WireCutterWindow(g => Vm.ApplyGeneratedGCode(g, "wire.nc")));
 
     private void OpenProjector_Click(object sender, RoutedEventArgs e) =>
-        ShowTool("proj", () =>
-        {
-            var w = new ProjectorWindow(Vm.ToolpathGeometry, Vm.RapidGeometry);
-            return w;
-        });
+        ShowTool("proj", () => new ProjectorWindow(Vm.ToolpathGeometry, Vm.RapidGeometry));
 
     private void OpenSecondSerial_Click(object sender, RoutedEventArgs e) =>
         ShowTool("serial2", () => new SecondSerialWindow());
+
+    private void OpenDiyPad_Click(object sender, RoutedEventArgs e) =>
+        ShowTool("diypad", () => new DiyControlPadWindow(Vm.Serial));
 
     private void OpenTablet_Click(object sender, RoutedEventArgs e) =>
         ShowTool("tablet", () => new TabletCreateWindow(g => Vm.ApplyGeneratedGCode(g, "tablet.nc")));
@@ -126,27 +185,40 @@ public partial class MainWindow : Window
     {
         var input = new Window
         {
-            Title = "Hershey stroke text", Width = 360, Height = 160,
+            Title = "Hershey / stroke text", Width = 400, Height = 200,
             WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this
         };
         var box = new TextBox { Text = "GRBL", Margin = new Thickness(12) };
+        var fonts = LffFontLoader.ListFonts();
+        var fontBox = new ComboBox { Margin = new Thickness(12, 0, 12, 0) };
+        fontBox.Items.Add("(built-in Hershey)");
+        foreach (var f in fonts) fontBox.Items.Add(f);
+        fontBox.SelectedIndex = 0;
         var ok = new Button { Content = "Generate", Width = 90, Margin = new Thickness(12), IsDefault = true };
         ok.Click += (_, _) =>
         {
-            var doc = HersheyStrokeFont.Generate(box.Text ?? "GRBL", heightMm: 12);
-            Vm.ApplyDocument(doc);
+            var text = box.Text ?? "GRBL";
+            if (fontBox.SelectedIndex <= 0 || fontBox.SelectedItem is not string fn || fn.StartsWith('('))
+                Vm.ApplyDocument(HersheyStrokeFont.Generate(text, heightMm: 12));
+            else
+                Vm.ApplyDocument(LffFontLoader.Render(text, fn, 12));
             input.Close();
         };
         var sp = new StackPanel();
-        sp.Children.Add(new TextBlock { Text = "Text (A–Z / 0–9):", Margin = new Thickness(12, 12, 12, 0) });
+        sp.Children.Add(new TextBlock { Text = "Text:", Margin = new Thickness(12, 12, 12, 0) });
         sp.Children.Add(box);
+        sp.Children.Add(new TextBlock { Text = "Font:", Margin = new Thickness(12, 8, 12, 0) });
+        sp.Children.Add(fontBox);
         sp.Children.Add(ok);
         input.Content = sp;
         input.ShowDialog();
     }
 
-    private void LangEn_Click(object sender, RoutedEventArgs e) => LocalizationService.Apply("en");
-    private void LangZh_Click(object sender, RoutedEventArgs e) => LocalizationService.Apply("zh");
+    private void OpenLff_Click(object sender, RoutedEventArgs e) => OpenHershey_Click(sender, e);
+
+    private void LangEn_Click(object sender, RoutedEventArgs e) { LocalizationService.Apply("en"); Vm.Settings.Language = "en"; Vm.Settings.Save(); }
+    private void LangZh_Click(object sender, RoutedEventArgs e) { LocalizationService.Apply("zh"); Vm.Settings.Language = "zh"; Vm.Settings.Save(); }
+    private void LangDe_Click(object sender, RoutedEventArgs e) { LocalizationService.Apply("de"); Vm.Settings.Language = "de"; Vm.Settings.Save(); }
 
     private void GamePadToggle_Click(object sender, RoutedEventArgs e)
     {
@@ -215,11 +287,7 @@ public partial class MainWindow : Window
     }
 
     private void OpenThirdSerial_Click(object sender, RoutedEventArgs e) =>
-        ShowTool("serial3", () =>
-        {
-            var w = new SecondSerialWindow { Title = "3rd Serial COM" };
-            return w;
-        });
+        ShowTool("serial3", () => new SecondSerialWindow { Title = "3rd Serial COM" });
 
     private void OpenGrblSetup_Click(object sender, RoutedEventArgs e) =>
         ShowTool("grblsetup", () => new GrblSetupWindow(Vm.Serial));
@@ -260,6 +328,7 @@ public partial class MainWindow : Window
 
     private void PreviewCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        if (_panning || Keyboard.Modifiers == ModifierKeys.Shift) return;
         if (sender is not Canvas canvas) return;
         var p = e.GetPosition(canvas);
         Vm.CanvasClick(p.X, p.Y);
@@ -269,28 +338,122 @@ public partial class MainWindow : Window
     {
         if (sender is not Canvas canvas) return;
         var p = e.GetPosition(canvas);
-        // Right-click also selects under cursor for context actions
         Vm.CanvasClick(p.X, p.Y);
         _lastCanvasClick = p;
     }
 
-    private System.Windows.Point _lastCanvasClick;
-
-    private void SetMarkerHere_Click(object sender, RoutedEventArgs e)
+    private void PreviewHost_MouseWheel(object sender, MouseWheelEventArgs e)
     {
-        Vm.CanvasSetMarker(_lastCanvasClick.X, _lastCanvasClick.Y);
+        double factor = e.Delta > 0 ? 1.1 : 1 / 1.1;
+        Vm.ViewZoom = Math.Clamp(Vm.ViewZoom * factor, 0.2, 8);
+        e.Handled = true;
     }
+
+    private void PreviewHost_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (Keyboard.Modifiers != ModifierKeys.Shift) return;
+        _panning = true;
+        _panStart = e.GetPosition((IInputElement)sender);
+        _panOriginX = Vm.ViewPanX;
+        _panOriginY = Vm.ViewPanY;
+        ((UIElement)sender).CaptureMouse();
+        e.Handled = true;
+    }
+
+    private void PreviewHost_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_panning) return;
+        _panning = false;
+        ((UIElement)sender).ReleaseMouseCapture();
+    }
+
+    private void PreviewHost_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (!_panning) return;
+        var p = e.GetPosition((IInputElement)sender);
+        Vm.ViewPanX = _panOriginX + (p.X - _panStart.X);
+        Vm.ViewPanY = _panOriginY + (p.Y - _panStart.Y);
+    }
+
+    private void SetMarkerHere_Click(object sender, RoutedEventArgs e) =>
+        Vm.CanvasSetMarker(_lastCanvasClick.X, _lastCanvasClick.Y);
 
     private void SendEditorLine_Click(object sender, RoutedEventArgs e)
     {
-        if (EditorBox == null) return;
-        int idx = EditorBox.CaretIndex;
-        var text = EditorBox.Text ?? "";
-        int start = text.LastIndexOf('\n', Math.Max(0, idx - 1)) + 1;
-        int end = text.IndexOf('\n', idx);
-        if (end < 0) end = text.Length;
-        var line = text[start..end];
+        string line;
+        if (CodeEditor.TextArea.Selection.Length > 0)
+            line = CodeEditor.SelectedText;
+        else
+        {
+            int lineNo = CodeEditor.TextArea.Caret.Line;
+            var docLine = CodeEditor.Document.GetLineByNumber(lineNo);
+            line = CodeEditor.Document.GetText(docLine.Offset, docLine.Length);
+        }
         Vm.SendEditorLineCommand.Execute(line);
+    }
+
+    private void FindReplace_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Window
+        {
+            Title = "Find / Replace", Width = 360, Height = 180,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this
+        };
+        var find = new TextBox { Margin = new Thickness(8) };
+        var replace = new TextBox { Margin = new Thickness(8, 0, 8, 8) };
+        var findBtn = new Button { Content = "Find", Width = 80, Margin = new Thickness(4) };
+        var replBtn = new Button { Content = "Replace all", Width = 100, Margin = new Thickness(4) };
+        findBtn.Click += (_, _) => Vm.FindReplaceEditorCommand.Execute(find.Text);
+        replBtn.Click += (_, _) =>
+        {
+            Vm.FindReplaceEditorCommand.Execute(find.Text + "|" + (replace.Text ?? ""));
+            dlg.Close();
+        };
+        var sp = new StackPanel();
+        sp.Children.Add(new TextBlock { Text = "Find", Margin = new Thickness(8, 8, 8, 0) });
+        sp.Children.Add(find);
+        sp.Children.Add(new TextBlock { Text = "Replace", Margin = new Thickness(8, 0, 8, 0) });
+        sp.Children.Add(replace);
+        var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        row.Children.Add(findBtn);
+        row.Children.Add(replBtn);
+        sp.Children.Add(row);
+        dlg.Content = sp;
+        dlg.ShowDialog();
+    }
+
+    private void FoldLevel1_Click(object sender, RoutedEventArgs e) => ApplyXmlFolding(1);
+    private void FoldLevel2_Click(object sender, RoutedEventArgs e) => ApplyXmlFolding(2);
+    private void FoldLevel3_Click(object sender, RoutedEventArgs e) => ApplyXmlFolding(3);
+
+    private void FoldExpand_Click(object sender, RoutedEventArgs e)
+    {
+        if (_foldingManager == null) return;
+        foreach (var f in _foldingManager.AllFoldings)
+            f.IsFolded = false;
+    }
+
+    private void ApplyXmlFolding(int level)
+    {
+        if (_foldingManager == null) return;
+        var lines = (CodeEditor.Text ?? "").Replace("\r\n", "\n").Split('\n');
+        var foldings = new List<NewFolding>();
+        foreach (var (start, end) in XmlMarkerService.FoldRanges(lines, level))
+        {
+            if (end <= start) continue;
+            try
+            {
+                var startOff = CodeEditor.Document.GetLineByNumber(start + 1).Offset;
+                var endLine = CodeEditor.Document.GetLineByNumber(Math.Min(end + 1, CodeEditor.Document.LineCount));
+                var endOff = endLine.Offset + endLine.Length;
+                if (endOff > startOff)
+                    foldings.Add(new NewFolding(startOff, endOff) { Name = $"…L{start + 1}-{end + 1}" });
+            }
+            catch { /* ignore bad ranges */ }
+        }
+        _foldingManager.UpdateFoldings(foldings, -1);
+        foreach (var f in _foldingManager.AllFoldings)
+            f.IsFolded = true;
     }
 
     private void Window_DragOver(object sender, DragEventArgs e)
@@ -307,6 +470,7 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        Vm.PropertyChanged -= Vm_PropertyChanged;
         _gamePad?.Dispose();
         Vm.Settings.JogStep = Vm.JogStep;
         Vm.Settings.JogFeed = Vm.JogFeed;
