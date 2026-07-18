@@ -96,7 +96,7 @@ public partial class MainViewModel : ObservableObject
 
     // World → canvas mapping (updated in BuildPreview)
     private double _mapMinX, _mapMaxY, _mapScale = 1;
-    private const double PreviewPad = 8;
+    private double PreviewPad => ShowRuler ? 36 : 10;
     private const double PreviewTarget = 400;
 
     [ObservableProperty] private double _transformScale = 1.0;
@@ -231,6 +231,7 @@ public partial class MainViewModel : ObservableObject
 
         LoadCustomButtons();
         InitParityFromSettings();
+        BuildPreview(); // establish map + ruler for empty workspace
         RefreshPorts();
         if (!string.IsNullOrEmpty(_settings.Connection.LastPort) && Ports.Contains(_settings.Connection.LastPort))
             SelectedPort = _settings.Connection.LastPort;
@@ -659,7 +660,7 @@ public partial class MainViewModel : ObservableObject
             _mapScale = 1;
             _mapMinX = _settings.MachineMinX;
             _mapMaxY = _settings.MachineMaxY;
-            if (ShowFixedMachineArea || ShowMachineLimits)
+            if (ShowFixedMachineArea || ShowMachineLimits || ShowRuler)
             {
                 double mSpanX = Math.Max(_settings.MachineMaxX - _settings.MachineMinX, 1);
                 double mSpanY = Math.Max(_settings.MachineMaxY - _settings.MachineMinY, 1);

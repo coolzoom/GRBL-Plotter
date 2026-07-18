@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Text;
 using System.Windows;
@@ -26,17 +27,20 @@ public partial class MainViewModel
     [ObservableProperty] private Visibility _axisBVisibility = Visibility.Collapsed;
     [ObservableProperty] private Visibility _axisCVisibility = Visibility.Collapsed;
 
-    [ObservableProperty] private bool _showRuler;
+    [ObservableProperty] private bool _showRuler = true;
     [ObservableProperty] private bool _showInfoHud = true;
     [ObservableProperty] private bool _showMachineLimits;
     [ObservableProperty] private bool _showFixedMachineArea;
     [ObservableProperty] private bool _showToolTableOverlay;
     [ObservableProperty] private Geometry? _rulerGeometry;
+    [ObservableProperty] private Geometry? _rulerGridGeometry;
     [ObservableProperty] private Geometry? _limitsGeometry;
     [ObservableProperty] private Geometry? _toolTableGeometry;
-    [ObservableProperty] private Visibility _rulerVisibility = Visibility.Collapsed;
+    [ObservableProperty] private Visibility _rulerVisibility = Visibility.Visible;
     [ObservableProperty] private Visibility _limitsVisibility = Visibility.Collapsed;
     [ObservableProperty] private Visibility _toolTableVisibility = Visibility.Collapsed;
+
+    public ObservableCollection<RulerLabelItem> RulerLabels { get; } = new();
     [ObservableProperty] private string _infoHudText = "";
     [ObservableProperty] private Visibility _infoHudVisibility = Visibility.Visible;
 
@@ -389,18 +393,28 @@ public partial class MainViewModel
         double minY = ShowFixedMachineArea ? _settings.MachineMinY : Document.MinY;
         double maxX = ShowFixedMachineArea ? _settings.MachineMaxX : Document.MaxX;
         double maxY = ShowFixedMachineArea ? _settings.MachineMaxY : Document.MaxY;
-        if (Document.Segments.Count == 0 && !ShowMachineLimits && !ShowFixedMachineArea)
+        if (Document.Segments.Count == 0 || (maxX - minX) < 1e-9 || (maxY - minY) < 1e-9)
         {
             minX = _settings.MachineMinX; maxX = _settings.MachineMaxX;
             minY = _settings.MachineMinY; maxY = _settings.MachineMaxY;
         }
 
+        RulerLabels.Clear();
         if (ShowRuler)
         {
-            RulerGeometry = PreviewOverlayBuilder.BuildRuler(minX, minY, maxX, maxY, Map);
+            var overlay = PreviewOverlayBuilder.BuildRuler(minX, minY, maxX, maxY, Map, _mapScale, rulerBandPx: 26);
+            RulerGeometry = overlay.Ticks;
+            RulerGridGeometry = overlay.Grid;
+            foreach (var lb in overlay.Labels)
+                RulerLabels.Add(new RulerLabelItem(lb.X, lb.Y, lb.Text));
             RulerVisibility = Visibility.Visible;
         }
-        else RulerVisibility = Visibility.Collapsed;
+        else
+        {
+            RulerGeometry = null;
+            RulerGridGeometry = null;
+            RulerVisibility = Visibility.Collapsed;
+        }
 
         if (ShowMachineLimits || ShowFixedMachineArea)
         {
@@ -423,7 +437,12 @@ public partial class MainViewModel
             : $"{Document.FileName}  segs:{Document.Segments.Count}  {DimensionText}  zoom:{ViewZoom:0.##}";
     }
 
-    partial void OnShowRulerChanged(bool value) { _settings.ShowRuler = value; _settings.Save(); RebuildOverlays(); }
+    partial void OnShowRulerChanged(bool value)
+    {
+        _settings.ShowRuler = value;
+        _settings.Save();
+        BuildPreview(); // padding changes with ruler band
+    }
     partial void OnShowInfoHudChanged(bool value) { _settings.ShowInfoHud = value; _settings.Save(); RebuildOverlays(); }
     partial void OnShowMachineLimitsChanged(bool value) { _settings.ShowMachineLimits = value; _settings.Save(); RebuildOverlays(); }
     partial void OnShowFixedMachineAreaChanged(bool value) { _settings.ShowFixedMachineArea = value; _settings.Save(); RebuildOverlays(); }
@@ -438,4 +457,12 @@ public partial class MainViewModel
         MachineB = $"{s.Machine.B:00000.000}";
         MachineC = $"{s.Machine.C:00000.000}";
     }
+}
+
+public sealed class RulerLabelItem
+{
+    public double X { get; }
+    public double Y { get; }
+    public string Text { get; }
+    public RulerLabelItem(double x, double y, string text) { X = x; Y = y; Text = text; }
 }

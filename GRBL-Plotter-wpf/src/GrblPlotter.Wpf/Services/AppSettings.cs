@@ -87,7 +87,7 @@ public sealed class AppSettings
     public double MachineMinY { get; set; }
     public double MachineMaxX { get; set; } = 300;
     public double MachineMaxY { get; set; } = 200;
-    public bool ShowRuler { get; set; }
+    public bool ShowRuler { get; set; } = true;
     public bool ShowInfoHud { get; set; } = true;
     public bool ShowMachineLimits { get; set; }
     public bool ShowFixedMachineArea { get; set; }
